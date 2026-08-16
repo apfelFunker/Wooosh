@@ -1,43 +1,73 @@
 import CoreServices
 import Foundation
 
-/// Long-running mode. Two triggers:
+enum Version {
+    static let current = "2.0.0"
+}
+
+/// Runs the sweeps. Two triggers:
 ///
 ///  * a periodic timer, so nothing is missed;
 ///  * an FSEvents stream on the watched containers, so a cache that suddenly
-///    balloons is collected within the debounce window rather than at the next
-///    tick. That is what makes the CloudKit case feel immediate — bird finishes
-///    a sync, the staging files go quiet, and the next debounce collects them.
-final class Daemon {
-    private let config: Config
-    private let sweeper: Sweeper
-    private var state: State
+///    balloons is collected within the throttle window rather than at the next
+///    tick.
+///
+/// Owned by the app delegate and kept alive for the whole process lifetime.
+final class SweepEngine {
 
-    private let queue = DispatchQueue(label: "com.juliuspaetzke.diskwarden.daemon")
+    /// Called on the main queue after every sweep and whenever access changes.
+    var onChange: (() -> Void)?
+
+    private(set) var state: State
+    private(set) var access: AccessProbe.Result = .init(blocked: [], reachable: [])
+
+    private var config: Config
+    private var sweeper: Sweeper
+
+    private let queue = DispatchQueue(label: "com.juliuspaetzke.wooosh.engine")
     private var timer: DispatchSourceTimer?
     private var stream: FSEventStreamRef?
     private var pendingWork: DispatchWorkItem?
 
-    init(config: Config) {
-        self.config = config
+    init() {
+        self.config = Config.load()
         self.sweeper = Sweeper(config: config)
         self.state = State.load()
+        Log.shared.verbose = config.verboseLogging
     }
 
-    func run() -> Never {
-        Log.shared.info("DiskWarden \(Version.current) gestartet (pid \(getpid()))")
-        Log.shared.info(
-            "Intervall \(config.sweepIntervalMinutes) min, Debounce \(config.watchDebounceSeconds) s, "
-            + "dryRun=\(config.dryRun)")
+    func start() {
+        Log.shared.info("Wooosh \(Version.current) gestartet (pid \(getpid()))")
         if let free = Volume.availableBytes() {
             Log.shared.info("Freier Speicher beim Start: \(Format.bytes(free))")
         }
-
-        installSignalHandlers()
+        refreshAccess()
         startWatching()
         startTimer()
+    }
 
-        dispatchMain()
+    /// Re-reads config and permissions. Called when the setup window is open so
+    /// granting Full Disk Access takes effect without a relaunch.
+    func refreshAccess() {
+        let result = AccessProbe.evaluate(config: config)
+        let changed = result.blocked.map(\.id) != access.blocked.map(\.id)
+        access = result
+
+        if changed {
+            if result.blocked.isEmpty {
+                Log.shared.info("Zugriff vollständig — alle aktiven Ziele erreichbar")
+                // Permission just arrived: do the work now instead of waiting
+                // out the rest of the interval.
+                queue.async { [weak self] in self?.performSweep(reason: "Zugriff erteilt") }
+            } else {
+                Log.shared.warn("Zugriff fehlt für: \(result.blocked.map(\.id).joined(separator: ", "))")
+            }
+            DispatchQueue.main.async { [weak self] in self?.onChange?() }
+        }
+    }
+
+    func sweepNow() {
+        queue.async { [weak self] in self?.performSweep(reason: "manuell") }
     }
 
     // MARK: - Triggers
@@ -45,20 +75,18 @@ final class Daemon {
     private func startTimer() {
         let interval = max(60, config.sweepIntervalMinutes * 60)
         let timer = DispatchSource.makeTimerSource(queue: queue)
-        // Fire once shortly after launch — the login sweep — then on interval.
         timer.schedule(deadline: .now() + 5, repeating: interval, leeway: .seconds(30))
         timer.setEventHandler { [weak self] in
-            self?.performSweep(reason: "Intervall", only: nil)
+            self?.performSweep(reason: "Intervall")
         }
         timer.resume()
         self.timer = timer
     }
 
     private func startWatching() {
-        // Watch the deepest wildcard-free ancestor of each glob — the container
-        // itself where the path is literal. Walking up any further (to
-        // ~/Library, say) would pull in the write traffic of every app on the
-        // machine for no extra coverage.
+        // Watch the deepest wildcard-free ancestor of each glob. Walking further
+        // up (to ~/Library, say) would pull in the write traffic of every app on
+        // the machine for no extra coverage.
         var candidates = Set<String>()
         for (target, enabled) in config.resolvedTargets() where enabled && !target.requiresRoot {
             let prefix = Glob.stablePrefix(of: Paths.expand(target.containerGlob))
@@ -66,13 +94,11 @@ final class Daemon {
                 candidates.insert(SafetyGate.standardize(prefix))
             }
         }
-
-        // FSEvents watches recursively, so a path already covered by an ancestor
-        // in the set is redundant.
+        // FSEvents watches recursively, so a path covered by an ancestor in the
+        // set is redundant.
         let watched = candidates.filter { path in
             !candidates.contains { $0 != path && path.hasPrefix($0 + "/") }
         }
-
         guard !watched.isEmpty else {
             Log.shared.warn("Keine überwachbaren Pfade gefunden — nur Intervall-Sweeps")
             return
@@ -82,25 +108,17 @@ final class Daemon {
         context.initialize(to: FSEventStreamContext(
             version: 0,
             info: Unmanaged.passUnretained(self).toOpaque(),
-            retain: nil,
-            release: nil,
-            copyDescription: nil
-        ))
+            retain: nil, release: nil, copyDescription: nil))
 
         let callback: FSEventStreamCallback = { _, info, _, _, _, _ in
             guard let info else { return }
-            let daemon = Unmanaged<Daemon>.fromOpaque(info).takeUnretainedValue()
-            daemon.scheduleDebouncedSweep()
+            Unmanaged<SweepEngine>.fromOpaque(info).takeUnretainedValue().scheduleThrottledSweep()
         }
 
         let paths = Array(watched).sorted()
         guard let stream = FSEventStreamCreate(
-            kCFAllocatorDefault,
-            callback,
-            context,
-            paths as CFArray,
-            FSEventStreamEventId(kFSEventStreamEventIdSinceNow),
-            5.0, // coalesce bursts inside CoreServices before we even see them
+            kCFAllocatorDefault, callback, context, paths as CFArray,
+            FSEventStreamEventId(kFSEventStreamEventIdSinceNow), 5.0,
             FSEventStreamCreateFlags(
                 kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagWatchRoot)
         ) else {
@@ -121,33 +139,28 @@ final class Daemon {
         Log.shared.info("Überwache \(paths.count) Pfade: \(paths.joined(separator: ", "))")
     }
 
-    /// Collapses a burst of filesystem events into a single sweep.
-    ///
     /// Trailing-edge throttle, deliberately not a resetting debounce: the first
-    /// event of a burst starts the clock and later events are folded into it. A
+    /// event of a burst starts the clock and later events fold into it. A
     /// resetting debounce would be starved outright on a busy cache directory,
     /// since the next write always lands before the timer expires. Protecting an
-    /// in-flight transfer is the safety gate's job — it checks open handles and
-    /// mtime per file — not the scheduler's.
-    private func scheduleDebouncedSweep() {
+    /// in-flight transfer is the safety gate's job, not the scheduler's.
+    private func scheduleThrottledSweep() {
         guard pendingWork == nil else { return }
-
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingWork = nil
-            self.performSweep(reason: "Dateisystem-Änderung", only: nil)
+            self.performSweep(reason: "Dateisystem-Änderung")
         }
         pendingWork = work
-        queue.asyncAfter(
-            deadline: .now() + max(10, config.watchDebounceSeconds), execute: work)
+        queue.asyncAfter(deadline: .now() + max(10, config.watchDebounceSeconds), execute: work)
     }
 
     // MARK: - Sweep
 
-    private func performSweep(reason: String, only targetID: String?) {
+    private func performSweep(reason: String) {
         Log.shared.debug("Sweep ausgelöst: \(reason)")
         let before = Volume.availableBytes()
-        let result = sweeper.sweep(only: targetID)
+        let result = sweeper.sweep()
         guard !result.aborted else { return }
 
         state.sweepCount += 1
@@ -163,29 +176,8 @@ final class Daemon {
         state.save()
 
         if result.bytesFreed > 0, let before, let after = Volume.availableBytes() {
-            Log.shared.info(
-                "Frei: \(Format.bytes(before)) -> \(Format.bytes(after))")
+            Log.shared.info("Frei: \(Format.bytes(before)) -> \(Format.bytes(after))")
         }
+        DispatchQueue.main.async { [weak self] in self?.onChange?() }
     }
-
-    // MARK: - Lifecycle
-
-    private func installSignalHandlers() {
-        for signalNumber in [SIGTERM, SIGINT] {
-            signal(signalNumber, SIG_IGN)
-            let source = DispatchSource.makeSignalSource(signal: signalNumber, queue: queue)
-            source.setEventHandler {
-                Log.shared.info("Signal \(signalNumber) empfangen — beende")
-                exit(0)
-            }
-            source.resume()
-            signalSources.append(source)
-        }
-    }
-
-    private var signalSources: [DispatchSourceSignal] = []
-}
-
-enum Version {
-    static let current = "1.1.0"
 }

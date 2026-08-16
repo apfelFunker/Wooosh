@@ -58,7 +58,7 @@ struct OpenFileIndex {
         // Read concurrently with the wait — lsof produces far more than a pipe
         // buffer holds, and reading only after termination would deadlock.
         var data = Data()
-        let readQueue = DispatchQueue(label: "com.juliuspaetzke.diskwarden.lsof")
+        let readQueue = DispatchQueue(label: "com.juliuspaetzke.wooosh.lsof")
         let finishedReading = DispatchSemaphore(value: 0)
         readQueue.async {
             data = pipe.fileHandleForReading.readDataToEndOfFile()

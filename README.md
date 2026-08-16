@@ -1,180 +1,162 @@
-# DiskWarden
+<div align="center">
 
-Ein unsichtbarer Hintergrunddienst für macOS, der genau die Caches abräumt, die
-in „Über diesen Mac → Speicher" als **Systemdaten** auftauchen und dort auf
-dutzende bis hunderte Gigabyte anwachsen können.
+# Wooosh
 
-Kein Fenster, kein Menüleisten-Icon, kein Dock-Eintrag. Ein LaunchAgent, der
-beim Login startet und danach von selbst arbeitet.
+**Räumt den Zwischenspeicher ab, der auf dem Mac als „Systemdaten" auftaucht und dort unbegrenzt anwächst.**
+
+Läuft im Hintergrund. Kein Fenster, kein Menüleistensymbol, nichts zu bedienen.
+
+</div>
 
 ---
 
-## Warum das nötig ist
+## Das Problem
 
-Der mit Abstand größte Einzelposten auf diesem Mac war
+`bird`, der iCloud-Drive-Dienst von macOS, legt beim Synchronisieren eine
+Staging-Kopie jeder übertragenen Datei an — und räumt sie nach Abschluss nicht
+zuverlässig wieder ab. Die Kopien sammeln sich unbegrenzt in
 `~/Library/Caches/CloudKit/com.apple.bird`.
 
-`bird` — der iCloud-Drive-Daemon — legt beim Synchronisieren eine Staging-Kopie
-jeder übertragenen Datei an und räumt sie nach Abschluss nicht zuverlässig ab.
-Die Kopien sammeln sich unbegrenzt an. Auf diesem Rechner waren es bei der
-ersten Messung **47 GB in 1.826 Assets**, in einem früheren Fall über 300 GB.
+Auf dem Referenzsystem waren es **47 GB in 1.826 Dateien**, in einem früheren
+Fall über 300 GB. In der Speicherübersicht taucht das als „Systemdaten" auf,
+also als etwas, das man nicht anfassen kann.
 
-Dass es sich um tote Reste handelt und nicht um eine laufende Übertragung,
-lässt sich belegen:
+Nach dem ersten Durchlauf von Wooosh: **820 KB.**
 
-| Prüfung | Ergebnis |
-|---|---|
-| Zeitstempel aller Assets | alle vom selben Tag, letzter Schreibzugriff 06:04 |
-| `find -newermt "-2 hours"` | 0 Dateien |
-| Größenänderung über 20 s | 0 MB — der Sync steht still |
-| `lsof` auf `bird` und `cloudd` | 0 offene Handles auf den Cache |
-
-Genau diese Prüfungen bilden das Sicherheits-Gate von DiskWarden. Es löscht
-nichts, was ein Prozess offen hat oder was kürzlich beschrieben wurde.
-
-## Messung auf diesem System
-
-Was die Analyse ergeben hat, geordnet nach Größe:
-
-| Ort | Größe | Urteil |
-|---|---|---|
-| `~/Library/Caches/CloudKit/com.apple.bird` | 47,4 GB | Systemdaemon — **wird abgeräumt** |
-| `~/Library/Mobile Documents/com~apple~CloudDocs` | 74,9 GB | echte Daten, bleibt |
-| `~/Library/Developer/CoreSimulator/Devices` | 15,9 GB | Xcode, bleibt |
-| `~/Library/Developer/Xcode` | 15,2 GB | Xcode, bleibt |
-| `~/Library/Application Support/Claude` | 12,8 GB | App-eigener Store, bleibt |
-| `/Library/Developer/CoreSimulator/Caches` | 6,1 GB | gehört zu Xcode, bleibt |
-| übrige App-Caches | ~3,5 GB | bleiben |
-
-Der Sweep gibt **47,4 GB** frei und rührt sonst nichts an.
-
----
-
-## Sicherheitskonzept
-
-Jede einzelne Löschung passiert ein Gate, das **fail closed** arbeitet: Eine
-Prüfung, die sich nicht auswerten lässt, lehnt den Kandidaten ab, statt ihn
-durchzuwinken. Lässt sich `lsof` nicht ausführen, wird der komplette Sweep
-abgebrochen.
-
-1. **Allowlist.** Ein Kandidat muss unterhalb eines fest einkompilierten Roots
-   liegen (`~/Library/Caches`, `~/Library/Application Support`,
-   `/Library/Caches`, `/Library/Developer/CoreSimulator/Caches`).
-2. **Geschützte Pfade.** Home, Dokumente, Schreibtisch, Bilder, Mobile
-   Documents, Keychains, Systemverzeichnisse und deren Vorfahren sind hart
-   gesperrt. Ein Ziel, das Vorfahr eines geschützten Pfads ist, wird abgelehnt.
-3. **Symlink-Auflösung.** Pfade werden aufgelöst und *danach* erneut gegen die
-   Allowlist geprüft. Ein Link aus dem Cache heraus führt nirgendwohin.
-4. **Volume-Grenze.** Weicht die Device-ID eines Kindes vom Container ab, ist es
-   ein Mountpoint und wird ausgelassen.
-5. **Karenzzeit.** Pro Ziel konfiguriert. Bei Verzeichnissen wird der gesamte
-   Teilbaum nach dem jüngsten Zeitstempel durchsucht — die mtime eines Ordners
-   allein bewegt sich nicht, wenn sich ein Enkel ändert.
-6. **Offene Handles.** Ein `lsof`-Schnappschuss pro Sweep. Was ein Prozess
-   offen hat — auch irgendwo unterhalb eines Verzeichnisses — bleibt liegen.
-7. **Container bleiben stehen.** Gelöscht werden immer nur die *Kinder* eines
-   Zielverzeichnisses, nie das Verzeichnis selbst. Ein falsch geratener Glob
-   kann damit schlimmstenfalls einen Cache leeren, niemals einen Baum entfernen,
-   den eine App besitzt.
-
-Nachvollziehen lässt sich das ohne Risiko:
-
-```bash
-diskwarden --dry-run --verbose
 ```
-
-Jede Entscheidung wird protokolliert, auch jede Ablehnung mit Begründung
-(`zu jung`, `von einem Prozess geöffnet`, `Symlink verlässt erlaubten Bereich`).
-
----
+16:48:14  iCloud Drive Transfer-Staging (bird): 34,01 GB freigegeben
+16:48:14  Sweep fertig: 34,01 GB in 1347 Objekten, 1.8 s
+16:48:14  Frei: 176,52 GB -> 210,53 GB
+```
 
 ## Installation
 
-```bash
-./install.sh
-```
+1. Aktuelle `Wooosh-x.y.z.zip` aus den [Releases](../../releases) laden
+2. Entpacken und **Wooosh.app in den Programme-Ordner ziehen**
+3. Öffnen — das Fenster führt durch die einmalige Freigabe
 
-Das baut das Release-Binary, installiert es nach
-`~/Library/Application Support/DiskWarden/bin`, signiert es ad hoc, schreibt den
-LaunchAgent und startet ihn. Der Dienst läuft ab dann bei jedem Login.
+Beim ersten Start trägt sich Wooosh selbst als Anmeldeobjekt ein. Es gibt keinen
+Installer und nichts, was zurückbleibt: Wooosh.app in den Papierkorb ziehen
+entfernt auch den Autostart.
 
-### Full Disk Access ist zwingend
+> **Gatekeeper**
+> Die App ist nicht notarisiert (siehe [Verteilung](#verteilung)). Beim ersten
+> Öffnen meldet macOS, dass der Entwickler nicht überprüft werden konnte.
+> Rechtsklick auf Wooosh.app → **Öffnen** → **Öffnen**. Nur einmal nötig.
 
-Ohne diesen Schritt räumt DiskWarden das Wichtigste nicht ab.
+### Festplattenvollzugriff
 
-`~/Library/Caches/CloudKit` ist von macOS per TCC geschützt. Eine Shell hat den
-Zugriff meist schon geerbt, ein LaunchAgent erbt ihn **nicht** — er bekommt
-`EPERM, Operation not permitted`. Das Tückische daran: alle höheren APIs melden
-dann einfach ein leeres Verzeichnis. Ohne Gegenmaßnahme sähe ein blockierter
-Sweep exakt aus wie ein sauberer.
+**Ohne diesen Schritt tut Wooosh nichts.**
 
-DiskWarden unterscheidet die beiden Fälle deshalb explizit, indem es bei einem
-leeren Treffer per `opendir` den echten `errno` abfragt:
+`~/Library/Caches/CloudKit` ist von macOS per TCC geschützt. Wooosh bekommt dort
+`EPERM, Operation not permitted`.
+
+Das Tückische: alle höheren macOS-APIs melden eine TCC-Sperre als *leeres
+Verzeichnis*. Ohne Gegenmaßnahme sähe eine blockierte App exakt aus wie eine,
+die sauber aufgeräumt hat. Wooosh fragt bei leerem Treffer deshalb per
+`opendir` den echten `errno` ab und unterscheidet die beiden Fälle ausdrücklich:
 
 ```
 [WARN] cloudkit.bird: keine Treffer für ~/Library/Caches/CloudKit/com.apple.bird/*/Assets
-       — /Users/…/Caches/CloudKit/com.apple.bird: nicht lesbar (Operation not
-       permitted) — vermutlich fehlt Full Disk Access
+       — nicht lesbar (Operation not permitted) — vermutlich fehlt Full Disk Access
 ```
 
-`install.sh` erkennt das am Log des Agents und leitet durch die Freigabe:
+Erkennt Wooosh die Sperre, zeigt es das Einrichtungsfenster und schickt
+zusätzlich eine Systemmitteilung — beim Start durch die Anmeldung gibt es sonst
+keinen Hinweis darauf, dass die App nur wartet.
+
+Die Freigabe selbst:
 
 1. Systemeinstellungen → Datenschutz & Sicherheit → **Festplattenvollzugriff**
-2. „+", dann ⇧⌘G und
-   `~/Library/Application Support/DiskWarden/bin` einfügen
-3. `diskwarden` auswählen, Schalter aktivieren
+2. „+", dann Wooosh aus dem Programme-Ordner auswählen
+3. Schalter aktivieren
 
-Danach:
+**macOS beendet Wooosh dabei.** Das gehört so: neue Berechtigungen greifen erst
+beim nächsten Start. Fragt macOS nach, „Beenden & neu öffnen" wählen —
+verschwindet die App stattdessen kommentarlos, einmal neu öffnen.
 
-```bash
-launchctl kickstart -k gui/$(id -u)/com.juliuspaetzke.diskwarden
-```
+Ist das Fenster während der Freigabe offen, erkennt Wooosh sie innerhalb von
+zwei Sekunden und legt sofort los.
 
-Der Zugriff muss dem **Binary** erteilt werden, nicht dem Terminal. Deshalb ist
-`diskwarden --check-access` aus der Shell nur bedingt aussagekräftig — es misst
-den Kontext des aufrufenden Prozesses. Verbindlich ist das Log des Agents.
+> **Nach jedem Update erneut freigeben**
+> TCC bindet eine Freigabe an die Code-Signatur. Eine ad-hoc signierte App
+> bekommt bei jedem Build einen neuen CDHash, womit die alte Freigabe ungültig
+> wird — der Eintrag steht dann zwar noch in der Liste, greift aber nicht mehr.
+> Wooosh meldet sich in dem Fall von selbst wieder. In den Systemeinstellungen
+> den Schalter aus- und wieder einschalten, oder den Eintrag mit „−" entfernen
+> und neu hinzufügen.
+>
+> Mit einem Developer-ID-Zertifikat entfiele auch das: TCC prüft dann gegen die
+> Team-ID statt gegen den Hash, und Freigaben überleben Updates.
 
-Entfernen:
+## Was gelöscht wird
 
-```bash
-./uninstall.sh
-```
+Nur Zwischenspeicher, die einem **Systemdienst** gehören. Alles, was einer
+Anwendung gehört — ihr Cache, ihr Store, ihre heruntergeladenen Assets — ist
+tabu, unabhängig davon, wie leicht es sich neu aufbauen ließe.
 
-## Betrieb
+| Ziel | Karenz | Was |
+|---|---|---|
+| `cloudkit.bird` | 2 h | iCloud-Drive Transfer-Staging von `bird` |
+| `iconservices` | 7 d | systemweiter Icon-Cache — braucht root, daher aus |
 
-```bash
-diskwarden --status        # bisher freigegebener Speicher, Konfiguration
-diskwarden --report        # aktuelle Größe jedes Ziels
-diskwarden --explain       # jedes Ziel mit Begründung, warum es löschbar ist
-diskwarden --check-access  # welche Ziele sind lesbar
-diskwarden --dry-run       # Sweep simulieren, nichts löschen
-diskwarden --once          # einen Sweep sofort ausführen
-```
+### Was nie angefasst wird
 
-Log mitlesen:
+Diese Pfade stehen in einer eigenen Liste (`TargetCatalogue.observed`), die der
+Sweeper nicht liest. Es gibt keine Einstellung, die daraus ein Löschziel macht.
 
-```bash
-tail -f ~/Library/Logs/DiskWarden/diskwarden.log
-```
+`~/Library/Application Support/Claude` · `~/Library/Caches/com.openai.codex` ·
+`~/Library/Caches/net.whatsapp.WhatsApp` · `~/Library/Caches/*.ShipIt` ·
+`~/Library/Developer/Xcode` · `~/Library/Developer/CoreSimulator/Devices` ·
+`/Library/Developer/CoreSimulator/Caches` · `~/Library/Caches/ms-playwright` ·
+`~/Library/Caches/Homebrew` · `~/Library/Caches/node-gyp` ·
+`~/Library/Caches/pip` · `~/Library/Caches/Adobe Camera Raw 2` ·
+`~/Library/Caches/Steam` · `~/Library/Mobile Documents` ·
+`/private/var/vm/sleepimage` · Papierkorb · Downloads
+
+## Sicherheitskonzept
+
+Jede Löschung passiert ein Gate, das **fail closed** arbeitet: eine Prüfung, die
+sich nicht auswerten lässt, lehnt den Kandidaten ab, statt ihn durchzuwinken.
+Lässt sich `lsof` nicht ausführen, wird der komplette Durchlauf abgebrochen.
+
+1. **Allowlist** — ein Kandidat muss unterhalb eines fest einkompilierten Roots
+   liegen.
+2. **Geschützte Pfade** — Home, Dokumente, Schreibtisch, Bilder, Mobile
+   Documents, Keychains, Systemverzeichnisse und deren Vorfahren sind hart
+   gesperrt. Ein Ziel, das Vorfahr eines geschützten Pfads ist, wird abgelehnt.
+3. **Symlink-Auflösung** — Pfade werden aufgelöst und *danach* erneut gegen die
+   Allowlist geprüft.
+4. **Volume-Grenze** — weicht die Device-ID eines Kindes vom Container ab, ist
+   es ein Mountpoint und wird ausgelassen.
+5. **Karenzzeit** — pro Ziel. Bei Verzeichnissen wird der gesamte Teilbaum nach
+   dem jüngsten Zeitstempel durchsucht; die mtime eines Ordners allein bewegt
+   sich nicht, wenn sich ein Enkel ändert.
+6. **Offene Handles** — ein `lsof`-Schnappschuss pro Durchlauf. Was ein Prozess
+   offen hat, auch irgendwo unterhalb eines Verzeichnisses, bleibt liegen.
+7. **Container bleiben stehen** — gelöscht werden immer nur die *Kinder* eines
+   Zielverzeichnisses, nie dieses selbst.
+
+Dass die 47 GB tote Reste waren und keine laufende Übertragung, wurde vor dem
+Bau belegt: kein Schreibzugriff seit Stunden, keine Größenänderung über eine
+Messperiode, null offene Handles von `bird` und `cloudd`. Genau diese Prüfungen
+sind das Gate.
 
 ## Auslöser
 
-Zwei, damit nichts liegen bleibt und trotzdem schnell reagiert wird:
-
-- **Intervall** — alle 15 Minuten, plus einmal kurz nach dem Login.
-- **FSEvents** — ein Watcher auf dem tiefsten wildcard-freien Vorfahren jedes
-  Ziels. Das erste Ereignis einer Serie startet eine 90-Sekunden-Uhr, spätere
-  Ereignisse werden eingesammelt.
+- **Intervall** — alle 15 Minuten, plus einmal kurz nach dem Start.
+- **FSEvents** — ein Watcher auf `~/Library/Caches/CloudKit/com.apple.bird`. Das
+  erste Ereignis einer Serie startet eine 90-Sekunden-Uhr, spätere Ereignisse
+  werden eingesammelt.
 
 Bewusst ein *Throttle*, kein zurücksetzender Debounce: auf einem belebten
 Cache-Verzeichnis käme der nächste Schreibzugriff immer vor dem Ablauf des
-Timers, und der ereignisgetriebene Sweep würde schlicht nie feuern. Eine
-laufende Übertragung zu schützen ist ohnehin nicht Aufgabe des Zeitplans,
-sondern des Gates — das prüft offene Handles und Zeitstempel pro Datei.
+Timers, und der ereignisgetriebene Durchlauf würde nie feuern. Eine laufende
+Übertragung zu schützen ist ohnehin Aufgabe des Gates, nicht des Zeitplans.
 
 ## Konfiguration
 
-`~/Library/Application Support/DiskWarden/config.json`
+Optional. `~/Library/Application Support/Wooosh/config.json`
 
 ```json
 {
@@ -184,75 +166,63 @@ sondern des Gates — das prüft offene Handles und Zeitstempel pro Datei.
   "watchDebounceSeconds": 90,
   "maxSweepSeconds": 600,
   "verboseLogging": false,
-  "targets": {
-    "playwright": { "enabled": false },
-    "whatsapp": { "minimumAgeHours": 720 }
-  }
+  "targets": { "cloudkit.bird": { "minimumAgeHours": 6 } }
 }
 ```
 
-| Schlüssel | Wirkung |
-|---|---|
-| `enabled` | Hauptschalter. `false` legt den Dienst schlafen, ohne ihn zu entladen. |
-| `dryRun` | Protokolliert, löscht nicht. |
-| `sweepIntervalMinutes` | Intervall des periodischen Sweeps, Minimum 1. |
-| `watchDebounceSeconds` | Ruhezeit nach dem letzten Dateisystem-Ereignis. |
-| `skipWhenFreeGigabytesAbove` | Sweep überspringen, solange so viel frei ist. |
-| `maxSweepSeconds` | Zeitbudget pro Sweep; der Rest wird vertagt. |
-| `targets.<id>.enabled` | Einzelnes Ziel an-/abschalten. |
-| `targets.<id>.minimumAgeHours` | Karenzzeit dieses Ziels überschreiben. |
+Protokoll: `~/Library/Logs/Wooosh/wooosh.log`
 
-Ziel-IDs liefert `diskwarden --explain`.
+## Bauen
 
-## Ziele
+```bash
+brew install xcodegen
+cd Wooosh
+./build-release.sh
+```
 
-Ab 1.1.0 gilt eine harte Richtlinie: **abgeräumt werden nur Caches, die einem
-Systemdaemon gehören.** Alles, was einer Anwendung gehört — ihr Cache, ihr
-Store, ihre heruntergeladenen Assets — ist tabu, unabhängig davon, wie leicht
-es sich neu aufbauen ließe.
+Das Xcode-Projekt wird aus `project.yml` erzeugt und ist nicht eingecheckt —
+neue Dateien müssen so nie von Hand eingetragen werden. Das App-Symbol kommt als
+Icon-Composer-Paket aus `Icon/schild.icon`.
 
-| ID | Karenz | Was |
-|---|---|---|
-| `cloudkit.bird` | 2 h | iCloud-Drive Transfer-Staging von `bird` |
-| `iconservices` | 7 d | systemweiter Icon-Cache — **braucht root** |
+```
+Wooosh/
+├── Icon/                  schild.icon, schild.png, schild.pxd
+└── Wooosh/
+    ├── project.yml        Projektdefinition für xcodegen
+    ├── build-release.sh
+    ├── Resources/         Info.plist, Icon
+    └── Sources/
+        ├── Engine/        Sweeper, Sicherheits-Gate, Ziele, Konfiguration
+        └── App/           Fenster, Zugriffsprüfung, Anmeldeobjekt, Mitteilungen
+```
 
-### Zum root-Ziel
+## Verteilung
 
-Ein User-LaunchAgent kann nicht nach `/Library` schreiben. `iconservices` ist
-deshalb standardmäßig deaktiviert und wird bei jedem Sweep mit Begründung
-übersprungen statt stillschweigend ignoriert.
+Die App ist **ad hoc signiert und nicht notarisiert.** Für Notarisierung braucht
+es ein „Developer ID Application"-Zertifikat aus dem kostenpflichtigen Apple
+Developer Program; ein reines Apple-Development-Zertifikat reicht dafür nicht.
 
-Ein root-LaunchDaemon wäre technisch möglich, wurde aber bewusst nicht gebaut:
-ein Prozess mit root-Rechten, der selbstständig im Home-Verzeichnis löscht, ist
-das Risiko für ein paar GB Icon-Cache nicht wert.
+Das hat zwei Folgen:
 
-## Was DiskWarden nie anfasst
+1. **Gatekeeper blockiert den ersten Start.** Heruntergeladene Kopien tragen das
+   Quarantäne-Merkmal. Umweg: Rechtsklick → Öffnen, einmalig pro Version.
+2. **Freigaben überleben kein Update.** Ad hoc bedeutet, dass die Signatur nur
+   aus dem CDHash des Bundles besteht. Der ändert sich bei jedem Build, und TCC
+   hängt den Festplattenvollzugriff genau daran.
 
-`--report` misst diese Pfade weiterhin und zeigt sie unter **WIRD NIE
-ANGEFASST**, damit das Speicherbild vollständig bleibt. Der Sweeper sieht sie
-nicht: sie stehen in einer eigenen Liste (`TargetCatalogue.observed`), die
-weder gelesen noch über die Konfiguration erreichbar ist. Es gibt keinen
-Schalter, der aus einem beobachteten Pfad ein Löschziel macht.
+Mit einem Developer-ID-Zertifikat entfällt beides — dann ergänzt man in
+`build-release.sh` das Signieren mit der Identität sowie
+`xcrun notarytool submit` und `xcrun stapler staple`.
 
-| Pfad | Warum |
-|---|---|
-| `~/Library/Application Support/Claude/` | App-eigener Store, u. a. 12 GB `vm_bundles` |
-| `~/Library/Caches/com.openai.codex`, `Codex` | App-eigener Cache |
-| `~/Library/Caches/net.whatsapp.WhatsApp` | App-eigener Cache |
-| `~/Library/Caches/*.ShipIt` | liegt in den Cache-Ordnern einzelner Apps |
-| `~/Library/Developer/Xcode` | Entwickler-Toolchain |
-| `~/Library/Developer/CoreSimulator/Devices` | Entwickler-Toolchain |
-| `/Library/Developer/CoreSimulator/Caches` | gehört zu Xcode |
-| `~/Library/Caches/ms-playwright` | dedizierter Store |
-| `~/Library/Caches/Homebrew` | dedizierter Store, siehe `brew cleanup` |
-| `~/Library/Caches/node-gyp`, `pip` | dedizierte Stores |
-| `~/Library/Caches/Adobe Camera Raw 2` | App-eigener Cache |
-| `~/Library/Caches/Steam` | App-eigener Cache |
-| `~/Library/Mobile Documents` | echte iCloud-Drive-Daten, 75 GB |
-| `/private/var/vm/sleepimage` | vom Kernel verwaltet |
-| Papierkorb, Downloads, alles außerhalb der Allowlist | — |
+Als Mittelweg ohne bezahltes Programm ließe sich ein selbstsigniertes
+Code-Signing-Zertifikat anlegen und dauerhaft verwenden. Gatekeeper besänftigt
+das nicht, aber die Signatur-Identität bliebe über Builds hinweg stabil, sodass
+erteilte Freigaben Updates überstehen.
 
 ## Anforderungen
 
-macOS 14 oder neuer, Swift 6 Toolchain zum Bauen. Entwickelt und getestet auf
-macOS 26.5 mit Xcode 26.6.
+macOS 14 oder neuer. Entwickelt und getestet auf macOS 26.5 mit Xcode 26.6.
+
+## Lizenz
+
+MIT

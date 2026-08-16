@@ -2,7 +2,7 @@ import Foundation
 
 enum Paths {
     /// `FileManager.homeDirectoryForCurrentUser` returns the sandbox container
-    /// when sandboxed; DiskWarden never is, but read the passwd entry anyway so
+    /// when sandboxed; Wooosh never is, but read the passwd entry anyway so
     /// the value is identical whether launched by launchd or a shell.
     static let home: URL = {
         if let pw = getpwuid(getuid()), let dir = pw.pointee.pw_dir {
@@ -12,7 +12,7 @@ enum Paths {
     }()
 
     static var supportDirectory: URL {
-        home.appendingPathComponent("Library/Application Support/DiskWarden", isDirectory: true)
+        home.appendingPathComponent("Library/Application Support/Wooosh", isDirectory: true)
     }
 
     static var configURL: URL {

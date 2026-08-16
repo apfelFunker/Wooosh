@@ -1,5 +1,8 @@
 .build/
-.swiftpm/
-*.xcodeproj
+dist/
+*.xcodeproj/
 .DS_Store
-Package.resolved
+xcuserdata/
+
+# Wird von build-release.sh aus ../Icon kopiert
+Wooosh/Resources/schild.icon/
