@@ -89,16 +89,19 @@ case "--status":
 
 case "--report":
     let sweeper = Sweeper(config: config)
-    var total: Int64 = 0
-    print("Aktuelle Belegung der Ziele:\n")
-    for (target, enabled) in config.resolvedTargets() {
-        var size: Int64 = 0
-        var found = false
-        for container in Glob.expand(Paths.expand(target.containerGlob)) {
-            found = true
-            size += sweeper.allocatedSize(of: URL(fileURLWithPath: container))
+
+    func measure(_ globPattern: String) -> Int64? {
+        let matches = Glob.expand(Paths.expand(globPattern))
+        guard !matches.isEmpty else { return nil }
+        return matches.reduce(into: Int64(0)) {
+            $0 += sweeper.allocatedSize(of: URL(fileURLWithPath: $1))
         }
-        guard found else { continue }
+    }
+
+    var total: Int64 = 0
+    print("WIRD ABGERÄUMT\n")
+    for (target, enabled) in config.resolvedTargets() {
+        guard let size = measure(target.containerGlob) else { continue }
         total += size
 
         var flags: [String] = []
@@ -109,7 +112,17 @@ case "--report":
         print("  \(String(repeating: " ", count: 10))  \(target.containerGlob)")
         print("")
     }
-    print("Summe: \(Format.bytes(total))")
+    print("  Summe: \(Format.bytes(total))")
+
+    print("\n\nWIRD NIE ANGEFASST\n")
+    var observedTotal: Int64 = 0
+    for entry in TargetCatalogue.observed {
+        guard let size = measure(entry.glob) else { continue }
+        observedTotal += size
+        print("  \(Format.bytes(size).padded(to: 10))  \(entry.displayName) — \(entry.note)")
+    }
+    print("")
+    print("  Summe: \(Format.bytes(observedTotal))")
 
 case "--explain":
     for (target, enabled) in config.resolvedTargets() {
@@ -123,6 +136,13 @@ case "--explain":
         }
         print("")
     }
+    print("Ausgenommen — app-eigene Caches und Stores, per Richtlinie tabu:")
+    for entry in TargetCatalogue.observed {
+        print("   \(entry.displayName) (\(entry.note))")
+    }
+    print("")
+    print("Diese Pfade stehen in keiner Liste, die der Sweeper liest. Es gibt")
+    print("keinen Konfigurationsschalter, der sie zu Löschzielen macht.")
 
 case "--check-access":
     // Reports what *this* process can see. Run from a terminal that already has

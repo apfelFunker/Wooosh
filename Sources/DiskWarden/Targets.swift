@@ -22,11 +22,26 @@ struct CleanupTarget {
     var enabledByDefault: Bool { !requiresRoot }
 }
 
+/// A directory that is measured and reported but never touched.
+///
+/// These exist so `--report` can still show the full storage picture. They are
+/// not reachable from the sweeper at all — no config flag turns them into
+/// cleanup targets, because they are not in the list the sweeper reads.
+struct ObservedPath {
+    let displayName: String
+    let glob: String
+    let note: String
+}
+
 enum TargetCatalogue {
 
+    /// Everything the sweeper is allowed to delete.
+    ///
+    /// Deliberately limited to caches owned by system daemons. Anything that
+    /// belongs to a specific application — its cache, its store, its downloaded
+    /// assets — is out of scope by policy and lives in `observed` instead.
     static let all: [CleanupTarget] = [
 
-        // ── The main offender ────────────────────────────────────────────────
         CleanupTarget(
             id: "cloudkit.bird",
             displayName: "iCloud Drive Transfer-Staging (bird)",
@@ -37,112 +52,11 @@ enum TargetCatalogue {
                 bird legt beim iCloud-Drive-Sync Staging-Kopien jeder übertragenen Datei an \
                 und räumt sie nach Abschluss nicht zuverlässig ab. Die Originale liegen in \
                 ~/Library/Mobile Documents und in iCloud; die Staging-Kopien werden bei Bedarf \
-                neu erzeugt. Bekannt als Ursache von hunderten GB "Systemdaten".
+                neu erzeugt. Bekannt als Ursache von hunderten GB "Systemdaten". Gehört dem \
+                Systemdaemon, keiner App.
                 """
         ),
 
-        // ── Squirrel/ShipIt updater leftovers ────────────────────────────────
-        CleanupTarget(
-            id: "shipit",
-            displayName: "ShipIt-Updater-Reste (Squirrel)",
-            containerGlob: "~/Library/Caches/*.ShipIt",
-            minimumAge: 24 * 3600,
-            requiresRoot: false,
-            rationale: """
-                Squirrel entpackt App-Updates hierhin und lässt die entpackte Vorgängerversion \
-                stehen. Nach einem abgeschlossenen Update sind das reine Leichen.
-                """
-        ),
-
-        // ── Developer tooling caches ─────────────────────────────────────────
-        CleanupTarget(
-            id: "codex.cache",
-            displayName: "OpenAI Codex Cache",
-            containerGlob: "~/Library/Caches/com.openai.codex",
-            minimumAge: 7 * 24 * 3600,
-            requiresRoot: false,
-            rationale: "Reiner Response-/Asset-Cache der Codex-CLI, wird bei Bedarf neu aufgebaut."
-        ),
-        CleanupTarget(
-            id: "codex.cache.legacy",
-            displayName: "Codex Cache (legacy)",
-            containerGlob: "~/Library/Caches/Codex",
-            minimumAge: 7 * 24 * 3600,
-            requiresRoot: false,
-            rationale: "Älterer Codex-Cache-Pfad, gleiche Semantik."
-        ),
-        CleanupTarget(
-            id: "homebrew",
-            displayName: "Homebrew Download-Cache",
-            containerGlob: "~/Library/Caches/Homebrew",
-            minimumAge: 14 * 24 * 3600,
-            requiresRoot: false,
-            rationale: """
-                Heruntergeladene Bottles und Quell-Tarballs. Homebrew lädt sie bei Bedarf neu; \
-                entspricht `brew cleanup`.
-                """
-        ),
-        CleanupTarget(
-            id: "playwright",
-            displayName: "Playwright Browser-Binaries",
-            containerGlob: "~/Library/Caches/ms-playwright",
-            minimumAge: 30 * 24 * 3600,
-            requiresRoot: false,
-            rationale: """
-                Heruntergeladene Chromium-/Firefox-/WebKit-Builds. Regenerierbar über \
-                `playwright install`, aber das ist ein großer Download — daher 30 Tage Karenz.
-                """
-        ),
-        CleanupTarget(
-            id: "node-gyp",
-            displayName: "node-gyp Header-Cache",
-            containerGlob: "~/Library/Caches/node-gyp",
-            minimumAge: 30 * 24 * 3600,
-            requiresRoot: false,
-            rationale: "Node-Header pro Version, werden beim nächsten nativen Build neu geholt."
-        ),
-        CleanupTarget(
-            id: "pip",
-            displayName: "pip Wheel-Cache",
-            containerGlob: "~/Library/Caches/pip",
-            minimumAge: 30 * 24 * 3600,
-            requiresRoot: false,
-            rationale: "Gecachte Wheels, werden bei Bedarf neu geladen bzw. gebaut."
-        ),
-
-        // ── App caches ───────────────────────────────────────────────────────
-        CleanupTarget(
-            id: "whatsapp",
-            displayName: "WhatsApp Media-Cache",
-            containerGlob: "~/Library/Caches/net.whatsapp.WhatsApp",
-            minimumAge: 14 * 24 * 3600,
-            requiresRoot: false,
-            rationale: """
-                Vorschau- und Medien-Cache. Die Chats selbst liegen im Container unter \
-                ~/Library/Group Containers und werden nicht angefasst.
-                """
-        ),
-        CleanupTarget(
-            id: "adobe.camera-raw",
-            displayName: "Adobe Camera Raw Cache",
-            containerGlob: "~/Library/Caches/Adobe Camera Raw 2",
-            minimumAge: 30 * 24 * 3600,
-            requiresRoot: false,
-            rationale: """
-                Vorgerenderte RAW-Vorschauen. Löschen kostet nur Rechenzeit beim nächsten \
-                Öffnen derselben Datei.
-                """
-        ),
-        CleanupTarget(
-            id: "steam.cache",
-            displayName: "Steam HTTP-Cache",
-            containerGlob: "~/Library/Caches/Steam",
-            minimumAge: 30 * 24 * 3600,
-            requiresRoot: false,
-            rationale: "Storefront-/Bild-Cache. Enthält keine Spieldaten."
-        ),
-
-        // ── Root-owned: declared, but a LaunchAgent cannot touch these ───────
         CleanupTarget(
             id: "iconservices",
             displayName: "Icon-Services-Store (systemweit)",
@@ -154,17 +68,79 @@ enum TargetCatalogue {
                 der User-Agent kann ihn nicht löschen und überspringt ihn.
                 """
         ),
-        CleanupTarget(
-            id: "coresimulator.caches",
-            displayName: "CoreSimulator Runtime-Download-Cache",
-            containerGlob: "/Library/Developer/CoreSimulator/Caches",
-            minimumAge: 7 * 24 * 3600,
-            requiresRoot: true,
-            rationale: """
-                Zwischenspeicher heruntergeladener Simulator-Runtimes. Die installierten \
-                Runtimes unter Volumes/ bleiben unangetastet. Gehört root.
-                """
-        ),
+    ]
+
+    /// Gemessen, aber niemals angefasst.
+    ///
+    /// App-eigene Caches und Stores stehen hier, weil sie der jeweiligen
+    /// Anwendung gehören: sie wieder aufzubauen kostet Downloads, Rechenzeit
+    /// oder schlicht Wartezeit beim nächsten Start. Sichtbar bleiben sie
+    /// trotzdem, damit `--report` das vollständige Bild zeigt.
+    static let observed: [ObservedPath] = [
+        ObservedPath(
+            displayName: "Claude VM-Bundles",
+            glob: "~/Library/Application Support/Claude/vm_bundles",
+            note: "App-eigener Store"),
+        ObservedPath(
+            displayName: "Claude Cache",
+            glob: "~/Library/Application Support/Claude/Cache",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "Codex Cache",
+            glob: "~/Library/Caches/com.openai.codex",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "Codex Cache (legacy)",
+            glob: "~/Library/Caches/Codex",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "WhatsApp Media-Cache",
+            glob: "~/Library/Caches/net.whatsapp.WhatsApp",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "ShipIt-Updater-Reste",
+            glob: "~/Library/Caches/*.ShipIt",
+            note: "liegt in den Cache-Ordnern einzelner Apps"),
+        ObservedPath(
+            displayName: "Xcode",
+            glob: "~/Library/Developer/Xcode",
+            note: "Entwickler-Toolchain"),
+        ObservedPath(
+            displayName: "CoreSimulator Geräte",
+            glob: "~/Library/Developer/CoreSimulator/Devices",
+            note: "Entwickler-Toolchain"),
+        ObservedPath(
+            displayName: "CoreSimulator Runtime-Cache",
+            glob: "/Library/Developer/CoreSimulator/Caches",
+            note: "Entwickler-Toolchain, gehört zu Xcode"),
+        ObservedPath(
+            displayName: "Playwright Browser-Builds",
+            glob: "~/Library/Caches/ms-playwright",
+            note: "dedizierter Store"),
+        ObservedPath(
+            displayName: "Homebrew Download-Cache",
+            glob: "~/Library/Caches/Homebrew",
+            note: "dedizierter Store, siehe `brew cleanup`"),
+        ObservedPath(
+            displayName: "node-gyp Header",
+            glob: "~/Library/Caches/node-gyp",
+            note: "dedizierter Store"),
+        ObservedPath(
+            displayName: "pip Wheel-Cache",
+            glob: "~/Library/Caches/pip",
+            note: "dedizierter Store"),
+        ObservedPath(
+            displayName: "Adobe Camera Raw Cache",
+            glob: "~/Library/Caches/Adobe Camera Raw 2",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "Steam",
+            glob: "~/Library/Caches/Steam",
+            note: "App-eigener Cache"),
+        ObservedPath(
+            displayName: "iCloud Drive (echte Daten)",
+            glob: "~/Library/Mobile Documents/com~apple~CloudDocs",
+            note: "keine Caches — echte Dateien"),
     ]
 
     static func target(id: String) -> CleanupTarget? {

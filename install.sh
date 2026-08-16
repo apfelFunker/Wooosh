@@ -48,6 +48,13 @@ if [ ! -f "$INSTALL_DIR/config.json" ]; then
 fi
 
 echo "==> Starte Agent"
+# Position im Log merken. Alles davor stammt aus früheren Läufen — auch aus
+# einem manuellen --dry-run von eben — und darf die Zugriffsprüfung unten
+# nicht beeinflussen.
+LOG="$LOG_DIR/diskwarden.log"
+LOG_OFFSET=1
+[ -f "$LOG" ] && LOG_OFFSET=$(( $(wc -l < "$LOG") + 1 ))
+
 launchctl bootstrap "$DOMAIN" "$PLIST"
 launchctl enable "$DOMAIN/$LABEL"
 
@@ -62,14 +69,15 @@ fi
 # Terminal wäre wertlos: die Shell hat Full Disk Access in der Regel schon,
 # der launchd-Prozess erbt ihn aber nicht.
 echo "==> Warte auf ersten Sweep"
-LOG="$LOG_DIR/diskwarden.log"
+agent_log() { [ -f "$LOG" ] && tail -n "+$LOG_OFFSET" "$LOG"; }
+
 for _ in $(seq 1 40); do
-	if [ -f "$LOG" ] && tail -n 60 "$LOG" | grep -q "Sweep fertig"; then break; fi
+	if agent_log 2>/dev/null | grep -q "Sweep fertig"; then break; fi
 	sleep 1
 done
 
 echo ""
-if tail -n 200 "$LOG" 2>/dev/null | grep -q "Full Disk Access"; then
+if agent_log 2>/dev/null | grep -q "Full Disk Access"; then
 	cat <<'EOF'
 ──────────────────────────────────────────────────────────────────────
   Ein Schritt fehlt noch: Full Disk Access

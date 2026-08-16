@@ -38,16 +38,15 @@ Was die Analyse ergeben hat, geordnet nach Größe:
 
 | Ort | Größe | Urteil |
 |---|---|---|
-| `~/Library/Caches/CloudKit/com.apple.bird` | 47,4 GB | Müll, wird abgeräumt |
-| `/Library/Developer/CoreSimulator/Volumes` | 24 GB | aktiv genutzte Runtimes, bleibt |
-| `~/Library/Developer/CoreSimulator/Devices` | 15 GB | Simulatoren, bleibt |
-| `~/Library/Developer/Xcode` | 14 GB | regenerierbar, aber nicht im Scope |
-| `~/Library/Application Support/Claude/vm_bundles` | 11 GB | ungeklärt, bleibt |
-| `/Library/Developer/CoreSimulator/Caches` | 6,1 GB | Müll, braucht root |
-| `~/Library/Caches/*.ShipIt` | 1,2 GB | Müll, wird abgeräumt |
-| übrige App-Caches | ~3,5 GB | nach Karenzzeit |
+| `~/Library/Caches/CloudKit/com.apple.bird` | 47,4 GB | Systemdaemon — **wird abgeräumt** |
+| `~/Library/Mobile Documents/com~apple~CloudDocs` | 74,9 GB | echte Daten, bleibt |
+| `~/Library/Developer/CoreSimulator/Devices` | 15,9 GB | Xcode, bleibt |
+| `~/Library/Developer/Xcode` | 15,2 GB | Xcode, bleibt |
+| `~/Library/Application Support/Claude` | 12,8 GB | App-eigener Store, bleibt |
+| `/Library/Developer/CoreSimulator/Caches` | 6,1 GB | gehört zu Xcode, bleibt |
+| übrige App-Caches | ~3,5 GB | bleiben |
 
-Der erste Sweep gibt rund **48 GB** frei.
+Der Sweep gibt **47,4 GB** frei und rührt sonst nichts an.
 
 ---
 
@@ -207,44 +206,51 @@ Ziel-IDs liefert `diskwarden --explain`.
 
 ## Ziele
 
+Ab 1.1.0 gilt eine harte Richtlinie: **abgeräumt werden nur Caches, die einem
+Systemdaemon gehören.** Alles, was einer Anwendung gehört — ihr Cache, ihr
+Store, ihre heruntergeladenen Assets — ist tabu, unabhängig davon, wie leicht
+es sich neu aufbauen ließe.
+
 | ID | Karenz | Was |
 |---|---|---|
-| `cloudkit.bird` | 2 h | iCloud-Drive Transfer-Staging |
-| `shipit` | 24 h | Squirrel/ShipIt-Updater-Reste |
-| `codex.cache`, `codex.cache.legacy` | 7 d | Codex-CLI-Cache |
-| `homebrew` | 14 d | heruntergeladene Bottles |
-| `whatsapp` | 14 d | Medien-Vorschau-Cache |
-| `playwright` | 30 d | Browser-Builds |
-| `node-gyp`, `pip` | 30 d | Build-Caches |
-| `adobe.camera-raw` | 30 d | RAW-Vorschauen |
-| `steam.cache` | 30 d | Storefront-Cache |
+| `cloudkit.bird` | 2 h | iCloud-Drive Transfer-Staging von `bird` |
 | `iconservices` | 7 d | systemweiter Icon-Cache — **braucht root** |
-| `coresimulator.caches` | 7 d | Runtime-Download-Cache — **braucht root** |
 
-### Zu den root-Zielen
+### Zum root-Ziel
 
-Ein User-LaunchAgent kann nicht nach `/Library` schreiben. Die beiden Ziele sind
-deshalb standardmäßig deaktiviert und werden bei jedem Sweep mit Begründung
-übersprungen statt stillschweigend ignoriert. Wer die rund 6 GB trotzdem haben
-will, führt das von Hand aus:
-
-```bash
-sudo rm -rf /Library/Developer/CoreSimulator/Caches/*
-```
+Ein User-LaunchAgent kann nicht nach `/Library` schreiben. `iconservices` ist
+deshalb standardmäßig deaktiviert und wird bei jedem Sweep mit Begründung
+übersprungen statt stillschweigend ignoriert.
 
 Ein root-LaunchDaemon wäre technisch möglich, wurde aber bewusst nicht gebaut:
 ein Prozess mit root-Rechten, der selbstständig im Home-Verzeichnis löscht, ist
-das Risiko für 6 GB nicht wert.
+das Risiko für ein paar GB Icon-Cache nicht wert.
 
-## Was DiskWarden bewusst nicht anfasst
+## Was DiskWarden nie anfasst
 
-- `~/Library/Mobile Documents` — echte iCloud-Drive-Daten, 70 GB
-- `~/Library/Developer/Xcode` und `CoreSimulator/Devices` — regenerierbar, aber
-  mit spürbaren Folgekosten
-- `~/Library/Application Support/Claude/vm_bundles` — 11 GB, Regenerierbarkeit
-  ungeklärt
-- `/private/var/vm/sleepimage` — vom Kernel verwaltet
-- Papierkorb, Downloads, alles außerhalb der Allowlist
+`--report` misst diese Pfade weiterhin und zeigt sie unter **WIRD NIE
+ANGEFASST**, damit das Speicherbild vollständig bleibt. Der Sweeper sieht sie
+nicht: sie stehen in einer eigenen Liste (`TargetCatalogue.observed`), die
+weder gelesen noch über die Konfiguration erreichbar ist. Es gibt keinen
+Schalter, der aus einem beobachteten Pfad ein Löschziel macht.
+
+| Pfad | Warum |
+|---|---|
+| `~/Library/Application Support/Claude/` | App-eigener Store, u. a. 12 GB `vm_bundles` |
+| `~/Library/Caches/com.openai.codex`, `Codex` | App-eigener Cache |
+| `~/Library/Caches/net.whatsapp.WhatsApp` | App-eigener Cache |
+| `~/Library/Caches/*.ShipIt` | liegt in den Cache-Ordnern einzelner Apps |
+| `~/Library/Developer/Xcode` | Entwickler-Toolchain |
+| `~/Library/Developer/CoreSimulator/Devices` | Entwickler-Toolchain |
+| `/Library/Developer/CoreSimulator/Caches` | gehört zu Xcode |
+| `~/Library/Caches/ms-playwright` | dedizierter Store |
+| `~/Library/Caches/Homebrew` | dedizierter Store, siehe `brew cleanup` |
+| `~/Library/Caches/node-gyp`, `pip` | dedizierte Stores |
+| `~/Library/Caches/Adobe Camera Raw 2` | App-eigener Cache |
+| `~/Library/Caches/Steam` | App-eigener Cache |
+| `~/Library/Mobile Documents` | echte iCloud-Drive-Daten, 75 GB |
+| `/private/var/vm/sleepimage` | vom Kernel verwaltet |
+| Papierkorb, Downloads, alles außerhalb der Allowlist | — |
 
 ## Anforderungen
 
