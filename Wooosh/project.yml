@@ -7,15 +7,16 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "2.0.0"
-    CURRENT_PROJECT_VERSION: "3"
+    MARKETING_VERSION: "2.1.0"
+    CURRENT_PROJECT_VERSION: "4"
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: ""
-    CODE_SIGN_STYLE: Manual
-    # Ad hoc. Ohne "Developer ID Application"-Zertifikat ist keine
-    # Notarisierung möglich — siehe README, Abschnitt Verteilung.
-    CODE_SIGN_IDENTITY: "-"
-    ENABLE_HARDENED_RUNTIME: NO
+    DEVELOPMENT_TEAM: 9FZVQ84P7B
+    # Automatisch signiert. Die Developer-ID-Identität wird nicht hier gesetzt —
+    # sie kommt beim `xcodebuild -exportArchive` mit method "developer-id" dazu,
+    # das die App neu signiert. Beides gleichzeitig lehnt Xcode ab.
+    CODE_SIGN_STYLE: Automatic
+    # Notarisierung setzt die Hardened Runtime voraus.
+    ENABLE_HARDENED_RUNTIME: YES
     # Kein App Sandbox: Wooosh muss Pfade außerhalb seines Containers lesen
     # und löschen. Mit Sandbox wäre die App funktionslos.
     ENABLE_APP_SANDBOX: NO

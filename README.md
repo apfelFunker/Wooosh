@@ -39,10 +39,8 @@ Beim ersten Start trägt sich Wooosh selbst als Anmeldeobjekt ein. Es gibt keine
 Installer und nichts, was zurückbleibt: Wooosh.app in den Papierkorb ziehen
 entfernt auch den Autostart.
 
-> **Gatekeeper**
-> Die App ist nicht notarisiert (siehe [Verteilung](#verteilung)). Beim ersten
-> Öffnen meldet macOS, dass der Entwickler nicht überprüft werden konnte.
-> Rechtsklick auf Wooosh.app → **Öffnen** → **Öffnen**. Nur einmal nötig.
+Die App ist mit Developer ID signiert und notarisiert, öffnet sich also per
+Doppelklick ohne Gatekeeper-Umweg.
 
 ### Festplattenvollzugriff
 
@@ -78,16 +76,11 @@ verschwindet die App stattdessen kommentarlos, einmal neu öffnen.
 Ist das Fenster während der Freigabe offen, erkennt Wooosh sie innerhalb von
 zwei Sekunden und legt sofort los.
 
-> **Nach jedem Update erneut freigeben**
-> TCC bindet eine Freigabe an die Code-Signatur. Eine ad-hoc signierte App
-> bekommt bei jedem Build einen neuen CDHash, womit die alte Freigabe ungültig
-> wird — der Eintrag steht dann zwar noch in der Liste, greift aber nicht mehr.
-> Wooosh meldet sich in dem Fall von selbst wieder. In den Systemeinstellungen
-> den Schalter aus- und wieder einschalten, oder den Eintrag mit „−" entfernen
-> und neu hinzufügen.
->
-> Mit einem Developer-ID-Zertifikat entfiele auch das: TCC prüft dann gegen die
-> Team-ID statt gegen den Hash, und Freigaben überleben Updates.
+Einmal erteilt, bleibt die Freigabe über Updates hinweg bestehen: TCC bindet sie
+an die Code-Signatur, und die ist mit Developer ID über die Team-ID stabil. Bei
+einer ad-hoc signierten App wäre das anders — dort besteht die Signatur nur aus
+dem CDHash des Bundles, der sich bei jedem Build ändert, womit die Freigabe
+jedes Mal verfällt.
 
 ## Was gelöscht wird
 
@@ -198,26 +191,43 @@ Wooosh/
 
 ## Verteilung
 
-Die App ist **ad hoc signiert und nicht notarisiert.** Für Notarisierung braucht
-es ein „Developer ID Application"-Zertifikat aus dem kostenpflichtigen Apple
-Developer Program; ein reines Apple-Development-Zertifikat reicht dafür nicht.
+Signiert mit **Developer ID Application (Team 9FZVQ84P7B)**, Hardened Runtime
+aktiv, notarisiert und mit angehefetem Ticket. Damit startet die App per
+Doppelklick, auch offline, und erteilte Freigaben überleben Updates.
 
-Das hat zwei Folgen:
+`build-release.sh` erledigt die ganze Kette: archivieren, mit Developer ID
+exportieren, packen, notarisieren, Ticket anheften, neu packen und das
+Gatekeeper-Urteil ausgeben.
 
-1. **Gatekeeper blockiert den ersten Start.** Heruntergeladene Kopien tragen das
-   Quarantäne-Merkmal. Umweg: Rechtsklick → Öffnen, einmalig pro Version.
-2. **Freigaben überleben kein Update.** Ad hoc bedeutet, dass die Signatur nur
-   aus dem CDHash des Bundles besteht. Der ändert sich bei jedem Build, und TCC
-   hängt den Festplattenvollzugriff genau daran.
+### Zugang für die Notarisierung
 
-Mit einem Developer-ID-Zertifikat entfällt beides — dann ergänzt man in
-`build-release.sh` das Signieren mit der Identität sowie
-`xcrun notarytool submit` und `xcrun stapler staple`.
+Einmalig pro Rechner:
 
-Als Mittelweg ohne bezahltes Programm ließe sich ein selbstsigniertes
-Code-Signing-Zertifikat anlegen und dauerhaft verwenden. Gatekeeper besänftigt
-das nicht, aber die Signatur-Identität bliebe über Builds hinweg stabil, sodass
-erteilte Freigaben Updates überstehen.
+```bash
+xcrun notarytool store-credentials "wooosh-notary" \
+    --apple-id DEINE@APPLE.ID --team-id 9FZVQ84P7B
+```
+
+Fragt nach einem app-spezifischen Passwort (appleid.apple.com → Anmeldung &
+Sicherheit → App-spezifische Passwörter) und legt es im Schlüsselbund ab. Fehlt
+das Profil, baut das Skript trotzdem eine signierte App, überspringt aber die
+Notarisierung und sagt das deutlich.
+
+### Zwei Fallstricke im Signierweg
+
+**Signiert wird beim Export, nicht beim Bauen.** Xcode lehnt eine manuell
+gesetzte Developer-ID-Identität bei automatischer Signierung ab
+(„conflicting provisioning settings"). Deshalb archiviert das Skript mit
+automatischer Signierung und lässt `-exportArchive` mit `method: developer-id`
+neu signieren.
+
+**Das Zertifikat ist für `security(1)` unsichtbar.** Xcode legt automatisch
+verwaltete Identitäten in der Data-Protection-Keychain ab, die das
+`security`-CLI nicht enumeriert — `security find-identity` zeigt die Developer
+ID also nicht an, obwohl sie existiert und funktioniert. Ein direktes
+`codesign -s "Developer ID Application"` findet sie ebenfalls nicht. Der Weg
+über `xcodebuild -exportArchive` ist deshalb nicht nur bequemer, sondern
+notwendig.
 
 ## Anforderungen
 
