@@ -32,13 +32,13 @@ final class SetupModel: ObservableObject {
 
         if let last = engine.state.lastSweep {
             let formatter = RelativeDateTimeFormatter()
-            formatter.locale = Locale(identifier: "de_DE")
+            formatter.locale = Locale(identifier: "en_US")
             formatter.unitsStyle = .full
             let when = formatter.localizedString(for: last, relativeTo: Date())
             let freed = Format.bytes(engine.state.lastSweepBytesFreed)
             lastSweepDescription = engine.state.lastSweepBytesFreed > 0
-                ? "Letzter Durchlauf \(when): \(freed) freigegeben."
-                : "Letzter Durchlauf \(when): nichts aufzuräumen."
+                ? "Last sweep \(when): \(freed) freed."
+                : "Last sweep \(when): nothing to clear."
         } else {
             lastSweepDescription = nil
         }

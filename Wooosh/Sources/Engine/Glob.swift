@@ -31,18 +31,18 @@ enum Glob {
             let reason = String(cString: strerror(code))
             switch code {
             case EPERM, EACCES:
-                return "nicht lesbar (\(reason)) — vermutlich fehlt Full Disk Access"
+                return "not readable (\(reason)) \u{2014} Full Disk Access is probably missing"
             case ENOENT:
-                return "existiert nicht"
+                return "does not exist"
             default:
-                return "nicht lesbar (\(reason))"
+                return "not readable (\(reason))"
             }
         }
         defer { closedir(handle) }
 
         var count = 0
         while readdir(handle) != nil { count += 1 }
-        return "lesbar, \(count) Einträge"
+        return "readable, \(count) entries"
     }
 
     /// Expands a shell glob to existing paths. `GLOB_NOSORT` is off so results

@@ -1,23 +1,23 @@
 #!/bin/bash
 #
-# Baut Wooosh.app als Universal Binary, signiert sie mit Developer ID,
-# notarisiert und heftet das Ticket an. Ergebnis liegt in ./dist.
+# Builds Wooosh.app as a universal binary, signs it with Developer ID,
+# notarises it and staples the ticket. The result lands in ./dist.
 #
-# Vorher setzen — die Team-ID steht bewusst nicht im Repo:
+# Set this first — the team ID deliberately does not live in the repository:
 #
 #   export DEVELOPMENT_TEAM=XXXXXXXXXX
 #
-# (Apple Developer → Membership details → Team ID.)
+# (Apple Developer -> Membership details -> Team ID.)
 #
-# Einmalig vorab, damit die Notarisierung ohne Rückfrage läuft:
+# Once per machine, so that notarising runs without asking:
 #
 #   xcrun notarytool store-credentials "wooosh-notary" \
-#       --apple-id DEINE@APPLE.ID --team-id $DEVELOPMENT_TEAM
+#       --apple-id YOUR@APPLE.ID --team-id $DEVELOPMENT_TEAM
 #
-# Das fragt nach einem app-spezifischen Passwort (appleid.apple.com →
-# Anmeldung & Sicherheit → App-spezifische Passwörter) und legt es im
-# Schlüsselbund ab. Fehlt das Profil, baut das Skript trotzdem eine signierte
-# App, überspringt aber die Notarisierung und sagt das deutlich.
+# That asks for an app-specific password (appleid.apple.com -> Sign-In and
+# Security -> App-Specific Passwords) and keeps it in the keychain. Without the
+# profile the script still builds a signed app, but skips notarising and says
+# so plainly.
 
 set -euo pipefail
 
@@ -29,12 +29,12 @@ NOTARY_PROFILE="wooosh-notary"
 
 if [ -z "$TEAM_ID" ]; then
 	cat >&2 <<'EOF'
-DEVELOPMENT_TEAM ist nicht gesetzt.
+DEVELOPMENT_TEAM is not set.
 
   export DEVELOPMENT_TEAM=XXXXXXXXXX
 
-Die Team-ID steht in Apple Developer unter "Membership details". Sie liegt
-nicht im Repo, damit ein Fork nicht versehentlich damit signiert.
+The team ID is in Apple Developer under "Membership details". It is not kept in
+the repository, so that a fork cannot sign with it by accident.
 EOF
 	exit 1
 fi
@@ -47,16 +47,16 @@ DMG="$DIST/Wooosh-$VERSION.dmg"
 
 echo "==> Wooosh $VERSION"
 
-command -v xcodegen >/dev/null || { echo "xcodegen fehlt: brew install xcodegen" >&2; exit 1; }
+command -v xcodegen >/dev/null || { echo "xcodegen is missing: brew install xcodegen" >&2; exit 1; }
 
-echo "==> Icon aus ../Icon übernehmen"
+echo "==> Taking the icon from ../Icon"
 rm -rf Resources/schild.icon
 cp -R ../Icon/schild.icon Resources/
 
-echo "==> Projekt erzeugen"
+echo "==> Generating the project"
 xcodegen generate >/dev/null
 
-echo "==> Archivieren (arm64 + x86_64)"
+echo "==> Archiving (arm64 + x86_64)"
 rm -rf "$DIST" .build
 xcodebuild archive \
 	-project Wooosh.xcodeproj \
@@ -69,11 +69,11 @@ xcodebuild archive \
 	ONLY_ACTIVE_ARCH=NO \
 	-allowProvisioningUpdates >/dev/null
 
-# Signiert wird beim Export, nicht beim Bauen: Xcode lehnt eine manuell
-# gesetzte Developer-ID-Identität bei automatischer Signierung ab. Der Export
-# signiert das Archiv mit "Developer ID Application" neu.
-echo "==> Mit Developer ID exportieren"
-# Die Team-ID kommt erst hier dazu, damit sie nirgends im Repo steht.
+# Signing happens on export, not on build: with automatic signing, Xcode
+# refuses a manually set Developer ID identity. The export re-signs the archive
+# with "Developer ID Application".
+echo "==> Exporting with Developer ID"
+# The team ID is filled in only here, so that it appears nowhere in the repo.
 sed "s/__TEAM_ID__/$TEAM_ID/" ExportOptions.plist > .build/ExportOptions.plist
 xcodebuild -exportArchive \
 	-archivePath .build/Wooosh.xcarchive \
@@ -84,43 +84,43 @@ xcodebuild -exportArchive \
 mkdir -p "$DIST"
 cp -R .build/export/Wooosh.app "$APP"
 
-echo "==> Prüfen"
+echo "==> Checking"
 lipo -info "$APP/Contents/MacOS/Wooosh"
 
-# In eine Variable, nicht in eine Pipe: `grep -q` steigt beim ersten Treffer
-# aus, codesign bekommt SIGPIPE, und `set -o pipefail` würde das als Fehler
-# werten — die Prüfung schlüge ausgerechnet dann fehl, wenn sie zutrifft.
+# Into a variable, not through a pipe: `grep -q` leaves on its first match,
+# codesign gets SIGPIPE, and `set -o pipefail` would take that for an error —
+# the check would fail precisely when it holds.
 SIGNATURE=$(codesign -dv --verbose=4 "$APP" 2>&1)
 echo "$SIGNATURE" | grep -E "^Authority=Developer ID|^TeamIdentifier"
 
 case "$SIGNATURE" in
 	*"Authority=Developer ID Application"*) ;;
-	*) echo "Nicht mit Developer ID signiert." >&2; exit 1 ;;
+	*) echo "Not signed with Developer ID." >&2; exit 1 ;;
 esac
 
-# Notarisierung verlangt die Hardened Runtime. Ohne sie wird der Upload
-# angenommen und erst Minuten später abgelehnt — hier abbrechen ist billiger.
+# Notarising requires the hardened runtime. Without it the upload is accepted
+# and turned down minutes later — stopping here is cheaper.
 case "$SIGNATURE" in
 	*"(runtime)"*) ;;
-	*) echo "Hardened Runtime fehlt — Notarisierung würde scheitern." >&2; exit 1 ;;
+	*) echo "Hardened runtime missing — notarising would fail." >&2; exit 1 ;;
 esac
 
-echo "==> Packen"
+echo "==> Packing"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
-# Das Laufwerk, das man beim Laden bekommt: die App und der Ordner, in den sie
-# gehört. Mehr braucht es nicht, und mehr kann auch nichts kaputtgehen.
-echo "==> Laufwerksabbild bauen"
+# What a download hands you: the app, and the folder it belongs in. Nothing
+# more is needed, and nothing more can go wrong.
+echo "==> Building the disk image"
 STAGE="$(mktemp -d)"
 cp -R "$APP" "$STAGE/Wooosh.app"
-ln -s /Applications "$STAGE/Programme"
+ln -s /Applications "$STAGE/Applications"
 rm -f "$DMG"
 hdiutil create -volname "Wooosh $VERSION" -srcfolder "$STAGE" -ov -format UDZO "$DMG" >/dev/null
 rm -rf "$STAGE"
 
-# Ein Abbild, das selbst nicht signiert ist, hält Gatekeeper beim Öffnen an —
-# auch wenn die App darin notarisiert ist. Also wird auch das Abbild signiert.
-echo "==> Abbild signieren"
+# An image that is not signed itself is stopped by Gatekeeper when it opens —
+# even when the app inside is notarised. So the image is signed as well.
+echo "==> Signing the image"
 codesign --force --timestamp --sign "Developer ID Application" "$DMG"
 codesign -dv --verbose=2 "$DMG" 2>&1 | grep -E "^Authority=Developer ID|^TeamIdentifier"
 
@@ -130,56 +130,56 @@ if ! xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>
 	cat >&2 <<EOF
 
 ──────────────────────────────────────────────────────────────────────
-  Notarisierung übersprungen — kein Zugang hinterlegt
+  Notarising skipped — no credentials stored
 
-  Die App ist mit Developer ID signiert, aber nicht notarisiert.
-  Gatekeeper blockiert sie damit weiterhin.
+  The app is signed with Developer ID, but it is not notarised.
+  Gatekeeper keeps blocking it.
 
-  Einmalig einrichten:
+  Set it up once:
 
     xcrun notarytool store-credentials "$NOTARY_PROFILE" \\
-        --apple-id DEINE@APPLE.ID --team-id $TEAM_ID
+        --apple-id YOUR@APPLE.ID --team-id $TEAM_ID
 
-  Danach dieses Skript erneut ausführen.
+  Then run this script again.
 ──────────────────────────────────────────────────────────────────────
 
 EOF
-	echo "Fertig (unnotarisiert): $DMG"
+	echo "Done (not notarised): $DMG"
 	shasum -a 256 "$DMG"
 	exit 0
 fi
 
-echo "==> Notarisieren (dauert meist 1–5 Minuten)"
+echo "==> Notarising (usually 1 to 5 minutes)"
 if ! xcrun notarytool submit "$DMG" \
 	--keychain-profile "$NOTARY_PROFILE" \
 	--wait 2>&1 | tee .build/notary.log; then
-	echo "Notarisierung fehlgeschlagen — siehe .build/notary.log" >&2
+	echo "Notarising failed — see .build/notary.log" >&2
 	exit 1
 fi
 
 if ! grep -q "status: Accepted" .build/notary.log; then
-	echo "Notarisierung nicht angenommen. Details:" >&2
+	echo "Notarising was not accepted. Details:" >&2
 	SUBMISSION=$(grep -m1 "id:" .build/notary.log | awk '{print $2}')
 	[ -n "$SUBMISSION" ] && xcrun notarytool log "$SUBMISSION" \
 		--keychain-profile "$NOTARY_PROFILE" >&2
 	exit 1
 fi
 
-# Das Ticket wird an App und Abbild geheftet, damit beide auch offline sofort
-# starten. Danach neu packen — das alte ZIP enthält die App noch ohne Ticket.
-echo "==> Ticket anheften"
+# The ticket is stapled to app and image, so both start at once even offline.
+# Then pack again — the old zip still holds the app without its ticket.
+echo "==> Stapling the ticket"
 xcrun stapler staple "$APP"
 xcrun stapler staple "$DMG"
 rm -f "$ZIP"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
 
-echo "==> Gatekeeper-Urteil"
+echo "==> Gatekeeper's verdict"
 spctl -a -vv "$APP" 2>&1 | tail -3
-# Für ein Abbild urteilt Gatekeeper nach anderen Regeln als für eine App.
+# For an image, Gatekeeper judges by other rules than for an app.
 spctl -a -t open --context context:primary-signature -vv "$DMG" 2>&1 | tail -2
 xcrun stapler validate "$APP"
 xcrun stapler validate "$DMG"
 
 echo ""
-echo "Fertig: $DMG"
+echo "Done: $DMG"
 shasum -a 256 "$DMG" "$ZIP"

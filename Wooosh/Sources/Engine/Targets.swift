@@ -44,103 +44,103 @@ enum TargetCatalogue {
 
         CleanupTarget(
             id: "cloudkit.bird",
-            displayName: "iCloud Drive Transfer-Staging (bird)",
+            displayName: "iCloud Drive transfer staging (bird)",
             containerGlob: "~/Library/Caches/CloudKit/com.apple.bird/*/Assets",
             minimumAge: 2 * 3600,
             requiresRoot: false,
             rationale: """
-                bird legt beim iCloud-Drive-Sync Staging-Kopien jeder übertragenen Datei an \
-                und räumt sie nach Abschluss nicht zuverlässig ab. Die Originale liegen in \
-                ~/Library/Mobile Documents und in iCloud; die Staging-Kopien werden bei Bedarf \
-                neu erzeugt. Bekannt als Ursache von hunderten GB "Systemdaten". Gehört dem \
-                Systemdaemon, keiner App.
+                While syncing iCloud Drive, bird stages a copy of every file it \
+                transfers and does not reliably clear them afterwards. The originals live \
+                in ~/Library/Mobile Documents and in iCloud; the staged copies are made \
+                again when needed. A known cause of hundreds of GB of "System Data". \
+                Owned by the system daemon, not by an app.
                 """
         ),
 
         CleanupTarget(
             id: "iconservices",
-            displayName: "Icon-Services-Store (systemweit)",
+            displayName: "Icon services store (system-wide)",
             containerGlob: "/Library/Caches/com.apple.iconservices.store",
             minimumAge: 7 * 24 * 3600,
             requiresRoot: true,
             rationale: """
-                Systemweiter Icon-Cache, baut sich beim nächsten Zugriff neu auf. Gehört root — \
-                der User-Agent kann ihn nicht löschen und überspringt ihn.
+                System-wide icon cache; it builds itself again on the next access. Owned \
+                by root, so the user agent cannot delete it and skips it.
                 """
         ),
     ]
 
-    /// Gemessen, aber niemals angefasst.
+    /// Measured, never touched.
     ///
-    /// App-eigene Caches und Stores stehen hier, weil sie der jeweiligen
-    /// Anwendung gehören: sie wieder aufzubauen kostet Downloads, Rechenzeit
-    /// oder schlicht Wartezeit beim nächsten Start. Sichtbar bleiben sie
-    /// trotzdem, damit `--report` das vollständige Bild zeigt.
+    /// Caches and stores that belong to an app live here, because they are the
+    /// app's own: rebuilding them costs downloads, processing time, or plain
+    /// waiting at the next start. They stay visible all the same, so that
+    /// `--report` shows the whole picture.
     static let observed: [ObservedPath] = [
         ObservedPath(
-            displayName: "Claude VM-Bundles",
+            displayName: "Claude VM bundles",
             glob: "~/Library/Application Support/Claude/vm_bundles",
-            note: "App-eigener Store"),
+            note: "the app's own store"),
         ObservedPath(
-            displayName: "Claude Cache",
+            displayName: "Claude cache",
             glob: "~/Library/Application Support/Claude/Cache",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
-            displayName: "Codex Cache",
+            displayName: "Codex cache",
             glob: "~/Library/Caches/com.openai.codex",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
-            displayName: "Codex Cache (legacy)",
+            displayName: "Codex cache (legacy)",
             glob: "~/Library/Caches/Codex",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
-            displayName: "WhatsApp Media-Cache",
+            displayName: "WhatsApp media cache",
             glob: "~/Library/Caches/net.whatsapp.WhatsApp",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
-            displayName: "ShipIt-Updater-Reste",
+            displayName: "ShipIt updater leftovers",
             glob: "~/Library/Caches/*.ShipIt",
-            note: "liegt in den Cache-Ordnern einzelner Apps"),
+            note: "sits in the cache folders of individual apps"),
         ObservedPath(
             displayName: "Xcode",
             glob: "~/Library/Developer/Xcode",
-            note: "Entwickler-Toolchain"),
+            note: "developer toolchain"),
         ObservedPath(
-            displayName: "CoreSimulator Geräte",
+            displayName: "CoreSimulator devices",
             glob: "~/Library/Developer/CoreSimulator/Devices",
-            note: "Entwickler-Toolchain"),
+            note: "developer toolchain"),
         ObservedPath(
-            displayName: "CoreSimulator Runtime-Cache",
+            displayName: "CoreSimulator runtime cache",
             glob: "/Library/Developer/CoreSimulator/Caches",
-            note: "Entwickler-Toolchain, gehört zu Xcode"),
+            note: "developer toolchain, belongs to Xcode"),
         ObservedPath(
-            displayName: "Playwright Browser-Builds",
+            displayName: "Playwright browser builds",
             glob: "~/Library/Caches/ms-playwright",
-            note: "dedizierter Store"),
+            note: "a dedicated store"),
         ObservedPath(
-            displayName: "Homebrew Download-Cache",
+            displayName: "Homebrew download cache",
             glob: "~/Library/Caches/Homebrew",
-            note: "dedizierter Store, siehe `brew cleanup`"),
+            note: "a dedicated store, see `brew cleanup`"),
         ObservedPath(
-            displayName: "node-gyp Header",
+            displayName: "node-gyp headers",
             glob: "~/Library/Caches/node-gyp",
-            note: "dedizierter Store"),
+            note: "a dedicated store"),
         ObservedPath(
-            displayName: "pip Wheel-Cache",
+            displayName: "pip wheel cache",
             glob: "~/Library/Caches/pip",
-            note: "dedizierter Store"),
+            note: "a dedicated store"),
         ObservedPath(
-            displayName: "Adobe Camera Raw Cache",
+            displayName: "Adobe Camera Raw cache",
             glob: "~/Library/Caches/Adobe Camera Raw 2",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
             displayName: "Steam",
             glob: "~/Library/Caches/Steam",
-            note: "App-eigener Cache"),
+            note: "the app's own cache"),
         ObservedPath(
-            displayName: "iCloud Drive (echte Daten)",
+            displayName: "iCloud Drive (real data)",
             glob: "~/Library/Mobile Documents/com~apple~CloudDocs",
-            note: "keine Caches — echte Dateien"),
+            note: "not caches \u{2014} real files"),
     ]
 
     static func target(id: String) -> CleanupTarget? {

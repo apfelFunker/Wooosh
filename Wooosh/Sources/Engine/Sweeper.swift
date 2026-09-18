@@ -24,7 +24,7 @@ final class Sweeper {
         let started = Date()
 
         guard config.enabled else {
-            Log.shared.info("Deaktiviert per config (enabled=false) — kein Sweep")
+            Log.shared.info("Turned off in config (enabled=false) \u{2014} no sweep")
             return result
         }
 
@@ -33,14 +33,14 @@ final class Sweeper {
             let freeGB = Double(free) / 1_073_741_824
             if freeGB > threshold {
                 Log.shared.info(
-                    "\(Format.bytes(free)) frei (> \(threshold) GB Schwelle) — kein Sweep")
+                    "\(Format.bytes(free)) free (above the \(threshold) GB threshold) \u{2014} no sweep")
                 return result
             }
         }
 
         let openFiles = OpenFileIndex.snapshot()
         guard openFiles.isUsable else {
-            Log.shared.error("Offene-Dateien-Index nicht verfügbar — Sweep abgebrochen (fail closed)")
+            Log.shared.error("Open-file index not available \u{2014} sweep stopped (fail closed)")
             result.aborted = true
             return result
         }
@@ -54,7 +54,7 @@ final class Sweeper {
             guard enabled else { continue }
 
             if target.requiresRoot && getuid() != 0 {
-                Log.shared.debug("\(target.id): übersprungen — benötigt root")
+                Log.shared.debug("\(target.id): skipped \u{2014} needs root")
                 result.skipped[target.id, default: 0] += 1
                 continue
             }
@@ -67,17 +67,17 @@ final class Sweeper {
                               deadline: deadline, result: &result)
             if freed > 0 {
                 result.perTarget[target.id] = freed
-                Log.shared.info("\(target.displayName): \(Format.bytes(freed)) freigegeben")
+                Log.shared.info("\(target.displayName): \(Format.bytes(freed)) freed")
             }
         }
 
         let elapsed = Date().timeIntervalSince(started)
         if result.bytesFreed > 0 {
             Log.shared.info(
-                "Sweep fertig: \(Format.bytes(result.bytesFreed)) in \(result.itemsRemoved) Objekten, "
+                "Sweep done: \(Format.bytes(result.bytesFreed)) in \(result.itemsRemoved) items, "
                 + "\(Format.duration(elapsed))")
         } else {
-            Log.shared.debug("Sweep fertig: nichts zu tun (\(Format.duration(elapsed)))")
+            Log.shared.debug("Sweep done: nothing to do (\(Format.duration(elapsed)))")
         }
         return result
     }
@@ -101,7 +101,7 @@ final class Sweeper {
         // instead of silently reporting a clean sweep.
         if containers.isEmpty {
             let prefix = Glob.stablePrefix(of: pattern)
-            Log.shared.warn("\(target.id): keine Treffer für \(target.containerGlob) — \(prefix): \(Glob.probe(prefix))")
+            Log.shared.warn("\(target.id): no matches for \(target.containerGlob) \u{2014} \(prefix): \(Glob.probe(prefix))")
             return 0
         }
 
@@ -123,7 +123,7 @@ final class Sweeper {
                 includingPropertiesForKeys: nil,
                 options: []
             ) else {
-                Log.shared.warn("\(target.id): \(container) nicht lesbar")
+                Log.shared.warn("\(target.id): \(container) not readable")
                 continue
             }
 
@@ -145,7 +145,7 @@ final class Sweeper {
                 let size = allocatedSize(of: child)
 
                 if config.dryRun {
-                    Log.shared.info("[dry-run] würde löschen: \(child.path) (\(Format.bytes(size)))")
+                    Log.shared.info("[dry-run] would delete: \(child.path) (\(Format.bytes(size)))")
                     freedForTarget += size
                     result.bytesFreed += size
                     result.itemsRemoved += 1
@@ -157,10 +157,10 @@ final class Sweeper {
                     freedForTarget += size
                     result.bytesFreed += size
                     result.itemsRemoved += 1
-                    Log.shared.debug("gelöscht: \(child.path) (\(Format.bytes(size)))")
+                    Log.shared.debug("deleted: \(child.path) (\(Format.bytes(size)))")
                 } catch {
                     Log.shared.warn(
-                        "\(target.id): \(child.lastPathComponent) nicht löschbar — "
+                        "\(target.id): \(child.lastPathComponent) could not be deleted \u{2014} "
                         + error.localizedDescription)
                     result.skipped[target.id, default: 0] += 1
                 }

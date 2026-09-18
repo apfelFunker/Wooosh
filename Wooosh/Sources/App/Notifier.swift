@@ -17,7 +17,7 @@ enum Notifier {
             options: [.alert, .sound]
         ) { granted, error in
             if let error {
-                Log.shared.debug("Mitteilungen nicht verfügbar: \(error.localizedDescription)")
+                Log.shared.debug("Notifications not available: \(error.localizedDescription)")
             } else {
                 Log.shared.debug("Mitteilungen erlaubt: \(granted)")
             }
@@ -26,10 +26,10 @@ enum Notifier {
 
     static func notifyAccessBlocked() {
         let content = UNMutableNotificationContent()
-        content.title = "Wooosh braucht noch eine Freigabe"
+        content.title = "Wooosh still needs permission"
         content.body = """
-            Ohne Festplattenvollzugriff kann Wooosh den iCloud-Cache nicht aufräumen. \
-            Zum Einrichten hier klicken.
+            Without Full Disk Access, Wooosh cannot clear the iCloud cache. \
+            Click here to set it up.
             """
         content.sound = .default
 
@@ -40,7 +40,7 @@ enum Notifier {
 
         UNUserNotificationCenter.current().add(request) { error in
             if let error {
-                Log.shared.debug("Mitteilung nicht zustellbar: \(error.localizedDescription)")
+                Log.shared.debug("Notification could not be delivered: \(error.localizedDescription)")
             }
         }
     }

@@ -19,10 +19,10 @@ enum LoginItem {
         guard SMAppService.mainApp.status != .enabled else { return true }
         do {
             try SMAppService.mainApp.register()
-            Log.shared.info("Als Anmeldeobjekt registriert")
+            Log.shared.info("Registered as a login item")
             return true
         } catch {
-            Log.shared.warn("Registrierung als Anmeldeobjekt fehlgeschlagen: \(error.localizedDescription)")
+            Log.shared.warn("Could not register as a login item: \(error.localizedDescription)")
             return false
         }
     }
@@ -30,9 +30,9 @@ enum LoginItem {
     static func unregister() {
         do {
             try SMAppService.mainApp.unregister()
-            Log.shared.info("Als Anmeldeobjekt abgemeldet")
+            Log.shared.info("Removed as a login item")
         } catch {
-            Log.shared.warn("Abmelden fehlgeschlagen: \(error.localizedDescription)")
+            Log.shared.warn("Could not remove the login item: \(error.localizedDescription)")
         }
     }
 

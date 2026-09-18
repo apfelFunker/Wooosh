@@ -39,7 +39,7 @@ final class SweepEngine {
     func start() {
         Log.shared.info("Wooosh \(Version.current) gestartet (pid \(getpid()))")
         if let free = Volume.availableBytes() {
-            Log.shared.info("Freier Speicher beim Start: \(Format.bytes(free))")
+            Log.shared.info("Free space at start: \(Format.bytes(free))")
         }
         refreshAccess()
         startWatching()
@@ -55,12 +55,12 @@ final class SweepEngine {
 
         if changed {
             if result.blocked.isEmpty {
-                Log.shared.info("Zugriff vollständig — alle aktiven Ziele erreichbar")
+                Log.shared.info("Access complete \u{2014} every active target is reachable")
                 // Permission just arrived: do the work now instead of waiting
                 // out the rest of the interval.
                 queue.async { [weak self] in self?.performSweep(reason: "Zugriff erteilt") }
             } else {
-                Log.shared.warn("Zugriff fehlt für: \(result.blocked.map(\.id).joined(separator: ", "))")
+                Log.shared.warn("Access missing for: \(result.blocked.map(\.id).joined(separator: ", "))")
             }
             DispatchQueue.main.async { [weak self] in self?.onChange?() }
         }
@@ -100,7 +100,7 @@ final class SweepEngine {
             !candidates.contains { $0 != path && path.hasPrefix($0 + "/") }
         }
         guard !watched.isEmpty else {
-            Log.shared.warn("Keine überwachbaren Pfade gefunden — nur Intervall-Sweeps")
+            Log.shared.warn("No watchable paths found \u{2014} sweeps on the interval only")
             return
         }
 
@@ -122,7 +122,7 @@ final class SweepEngine {
             FSEventStreamCreateFlags(
                 kFSEventStreamCreateFlagNoDefer | kFSEventStreamCreateFlagWatchRoot)
         ) else {
-            Log.shared.warn("FSEvents-Stream nicht erstellbar — nur Intervall-Sweeps")
+            Log.shared.warn("FSEvents stream could not be created \u{2014} sweeps on the interval only")
             context.deinitialize(count: 1)
             context.deallocate()
             return
@@ -130,13 +130,13 @@ final class SweepEngine {
 
         FSEventStreamSetDispatchQueue(stream, queue)
         guard FSEventStreamStart(stream) else {
-            Log.shared.warn("FSEvents-Stream nicht startbar — nur Intervall-Sweeps")
+            Log.shared.warn("FSEvents stream could not be started \u{2014} sweeps on the interval only")
             FSEventStreamInvalidate(stream)
             FSEventStreamRelease(stream)
             return
         }
         self.stream = stream
-        Log.shared.info("Überwache \(paths.count) Pfade: \(paths.joined(separator: ", "))")
+        Log.shared.info("Watching \(paths.count) paths: \(paths.joined(separator: ", "))")
     }
 
     /// Trailing-edge throttle, deliberately not a resetting debounce: the first
@@ -149,7 +149,7 @@ final class SweepEngine {
         let work = DispatchWorkItem { [weak self] in
             guard let self else { return }
             self.pendingWork = nil
-            self.performSweep(reason: "Dateisystem-Änderung")
+            self.performSweep(reason: "file system change")
         }
         pendingWork = work
         queue.asyncAfter(deadline: .now() + max(10, config.watchDebounceSeconds), execute: work)
@@ -158,7 +158,7 @@ final class SweepEngine {
     // MARK: - Sweep
 
     private func performSweep(reason: String) {
-        Log.shared.debug("Sweep ausgelöst: \(reason)")
+        Log.shared.debug("Sweep triggered: \(reason)")
         let before = Volume.availableBytes()
         let result = sweeper.sweep()
         guard !result.aborted else { return }
@@ -176,7 +176,7 @@ final class SweepEngine {
         state.save()
 
         if result.bytesFreed > 0, let before, let after = Volume.availableBytes() {
-            Log.shared.info("Frei: \(Format.bytes(before)) -> \(Format.bytes(after))")
+            Log.shared.info("Free: \(Format.bytes(before)) -> \(Format.bytes(after))")
         }
         DispatchQueue.main.async { [weak self] in self?.onChange?() }
     }

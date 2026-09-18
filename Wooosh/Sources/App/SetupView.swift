@@ -41,8 +41,8 @@ struct SetupView: View {
                 Text("Wooosh")
                     .font(.system(size: 22, weight: .semibold))
                 Text(model.isBlocked
-                     ? "Noch ein Schritt, dann läuft es von allein."
-                     : "Läuft im Hintergrund.")
+                     ? "One more step, then it runs on its own."
+                     : "Running in the background.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
@@ -57,7 +57,7 @@ struct SetupView: View {
             Circle()
                 .fill(model.isBlocked ? Color.orange : Color.green)
                 .frame(width: 8, height: 8)
-            Text(model.isBlocked ? "Wartet" : "Aktiv")
+            Text(model.isBlocked ? "Waiting" : "Active")
                 .font(.system(size: 12, weight: .medium))
         }
         .padding(.horizontal, 10)
@@ -69,51 +69,51 @@ struct SetupView: View {
 
     private var instructions: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Festplattenvollzugriff erteilen")
+            Text("Grant Full Disk Access")
                 .font(.system(size: 15, weight: .semibold))
 
             Text("""
-                macOS schützt den Ordner, in dem sich der iCloud-Zwischenspeicher \
-                ansammelt. Ohne diese Freigabe sieht Wooosh dort ein leeres \
-                Verzeichnis und räumt nichts auf.
+                macOS protects the folder where the iCloud cache piles up. \
+                Without this permission, Wooosh sees an empty directory there \
+                and clears nothing.
                 """)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 12) {
-                step(1, "Auf „Systemeinstellungen öffnen“ klicken.")
-                step(2, "Unter „Festplattenvollzugriff“ auf „+“ klicken.")
-                step(3, "Wooosh auswählen — mit „Im Finder zeigen“ findest du die App.")
-                step(4, "Den Schalter neben Wooosh aktivieren.")
-                step(5, "Falls macOS fragt: „Beenden & neu öffnen“ wählen.")
+                step(1, "Click \u{201C}Open System Settings\u{201D}.")
+                step(2, "Under \u{201C}Full Disk Access\u{201D}, click \u{201C}+\u{201D}.")
+                step(3, "Pick Wooosh \u{2014} \u{201C}Show in Finder\u{201D} leads you to the app.")
+                step(4, "Turn on the switch next to Wooosh.")
+                step(5, "If macOS asks, choose \u{201C}Quit & Reopen\u{201D}.")
             }
 
             calloutBox(
-                title: "macOS beendet Wooosh bei der Freigabe",
+                title: "macOS quits Wooosh while you grant access",
                 body: """
-                    Das gehört so — eine App übernimmt neue Berechtigungen erst beim \
-                    nächsten Start. Sollte Wooosh dabei einfach verschwinden, öffne es \
-                    danach noch einmal. Ab dann läuft es von allein.
+                    That is how it works \u{2014} an app picks up new permissions only \
+                    on its next start. If Wooosh simply disappears, open it once more \
+                    afterwards. From then on it runs on its own.
                     """)
 
-            Text("Steht die Freigabe, während dieses Fenster offen ist, erkennt Wooosh das innerhalb weniger Sekunden und legt sofort los.")
+            Text("If access is granted while this window is open, Wooosh notices within a few seconds and starts right away.")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
-                Button("Systemeinstellungen öffnen") { model.openPrivacySettings() }
+                Button("Open System Settings") { model.openPrivacySettings() }
                     .buttonStyle(.borderedProminent)
-                Button("Im Finder zeigen") { model.revealInFinder() }
+                Button("Show in Finder") { model.revealInFinder() }
             }
 
             if !model.isInApplicationsFolder {
                 calloutBox(
-                    title: "Wooosh liegt noch nicht im Programme-Ordner",
+                    title: "Wooosh is not in the Applications folder yet",
                     body: """
-                        Zieh die App zuerst nach „Programme“. Von dort aus bleibt die \
-                        Freigabe und der Start bei der Anmeldung zuverlässig erhalten.
+                        Move the app to Applications first. From there, the permission \
+                        and the start at login both hold reliably.
                         """)
             }
         }
@@ -136,23 +136,22 @@ struct SetupView: View {
 
     private var runningSummary: some View {
         VStack(alignment: .leading, spacing: 18) {
-            Text("Alles erledigt")
+            Text("All set")
                 .font(.system(size: 15, weight: .semibold))
 
             Text("""
-                Wooosh prüft ab jetzt automatisch mit und räumt den \
-                iCloud-Zwischenspeicher ab, sobald er nicht mehr gebraucht wird. \
-                Es startet bei der Anmeldung und hat kein Fenster und kein \
-                Menüleistensymbol.
+                From now on Wooosh watches along and clears the iCloud cache as \
+                soon as it is no longer needed. It starts at login, and it has \
+                no window and no menu bar icon.
                 """)
                 .font(.system(size: 13))
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 12) {
-                metric("Freigegeben", model.totalFreed)
-                metric("Jetzt frei", model.freeSpace)
-                metric("Durchläufe", "\(model.sweepCount)")
+                metric("Freed", model.totalFreed)
+                metric("Free now", model.freeSpace)
+                metric("Sweeps", "\(model.sweepCount)")
             }
 
             if let last = model.lastSweepDescription {
@@ -162,11 +161,11 @@ struct SetupView: View {
             }
 
             HStack(spacing: 10) {
-                Button("Jetzt aufräumen") { model.sweepNow() }
-                Button("Protokoll öffnen") { model.openLog() }
+                Button("Sweep now") { model.sweepNow() }
+                Button("Open log") { model.openLog() }
             }
 
-            Toggle("Bei der Anmeldung starten", isOn: Binding(
+            Toggle("Open at login", isOn: Binding(
                 get: { model.launchAtLogin },
                 set: { model.setLaunchAtLogin($0) }))
                 .toggleStyle(.switch)
@@ -207,13 +206,13 @@ struct SetupView: View {
     private var footnote: some View {
         VStack(alignment: .leading, spacing: 6) {
             Divider().padding(.vertical, 4)
-            Text("Was Wooosh löscht")
+            Text("What Wooosh deletes")
                 .font(.system(size: 12, weight: .semibold))
             Text("""
-                Ausschließlich Zwischenspeicher, die einem Systemdienst gehören — \
-                allen voran die Übertragungskopien, die der iCloud-Drive-Dienst \
-                anlegt und nicht wieder abräumt. Caches und Daten einzelner Apps \
-                bleiben unangetastet, ebenso deine iCloud-Dateien selbst.
+                Only caches that belong to a system service \u{2014} above all the \
+                transfer copies the iCloud Drive service makes and never clears \
+                again. Caches and data of individual apps are left alone, and so \
+                are your iCloud files themselves.
                 """)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)

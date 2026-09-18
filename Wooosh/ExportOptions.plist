@@ -2,22 +2,22 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<!-- Verteilung außerhalb des App Store: signiert mit
+	<!-- Distribution outside the App Store: signed with
 	     "Developer ID Application". -->
 	<key>method</key>
 	<string>developer-id</string>
 
-	<!-- build-release.sh schreibt hier $DEVELOPMENT_TEAM hinein und legt das
-	     Ergebnis unter .build ab; diese Datei bleibt ohne Team-ID. -->
+	<!-- build-release.sh writes $DEVELOPMENT_TEAM in here and puts the result
+	     under .build; this file stays without a team ID. -->
 	<key>teamID</key>
 	<string>__TEAM_ID__</string>
 
 	<key>signingStyle</key>
 	<string>automatic</string>
 
-	<!-- "export" legt die signierte App ab, ohne sie hochzuladen. Die
-	     Notarisierung übernimmt anschließend notarytool, damit sich Signieren
-	     und Notarisieren getrennt nachvollziehen lassen. -->
+	<!-- "export" writes out the signed app without uploading it. notarytool
+	     takes care of notarising afterwards, so that signing and notarising can
+	     be followed separately. -->
 	<key>destination</key>
 	<string>export</string>
 </dict>

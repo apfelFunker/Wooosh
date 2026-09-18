@@ -51,7 +51,7 @@ struct OpenFileIndex {
         do {
             try process.run()
         } catch {
-            Log.shared.error("lsof nicht startbar: \(error.localizedDescription)")
+            Log.shared.error("lsof could not be started: \(error.localizedDescription)")
             return .unusable
         }
 
@@ -71,21 +71,21 @@ struct OpenFileIndex {
         }
         if process.isRunning {
             process.terminate()
-            Log.shared.error("lsof-Timeout nach \(Format.duration(timeout)) — Sweep wird übersprungen")
+            Log.shared.error("lsof timed out after \(Format.duration(timeout)) \u{2014} skipping the sweep")
             _ = finishedReading.wait(timeout: .now() + 5)
             return .unusable
         }
         process.waitUntilExit()
 
         guard finishedReading.wait(timeout: .now() + 10) == .success else {
-            Log.shared.error("lsof-Ausgabe nicht vollständig lesbar — Sweep wird übersprungen")
+            Log.shared.error("lsof output could not be read in full \u{2014} skipping the sweep")
             return .unusable
         }
 
         // lsof exits 1 when some paths were unreadable, which is normal for a
         // non-root user. Only a missing/blank result is disqualifying.
         guard let text = String(data: data, encoding: .utf8), !text.isEmpty else {
-            Log.shared.error("lsof lieferte keine Ausgabe — Sweep wird übersprungen")
+            Log.shared.error("lsof returned no output \u{2014} skipping the sweep")
             return .unusable
         }
 
@@ -98,7 +98,7 @@ struct OpenFileIndex {
         }
 
         guard !paths.isEmpty else {
-            Log.shared.error("lsof lieferte keine Pfade — Sweep wird übersprungen")
+            Log.shared.error("lsof returned no paths \u{2014} skipping the sweep")
             return .unusable
         }
 

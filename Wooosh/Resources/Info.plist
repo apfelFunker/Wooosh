@@ -23,8 +23,8 @@
 	<key>LSMinimumSystemVersion</key>
 	<string>$(MACOSX_DEPLOYMENT_TARGET)</string>
 
-	<!-- Hintergrunddienst: kein Dock-Symbol, kein Eintrag im App-Umschalter.
-	     Das Einrichtungsfenster wird bei Bedarf programmatisch gezeigt. -->
+	<!-- A background service: no dock icon, no entry in the app switcher.
+	     The setup window is shown from code when it is needed. -->
 	<key>LSUIElement</key>
 	<true/>
 

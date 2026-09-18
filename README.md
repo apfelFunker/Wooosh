@@ -3,91 +3,90 @@
   &nbsp;Wooosh
 </h1>
 
-Wooosh räumt den Zwischenspeicher ab, der auf dem Mac als „Systemdaten" auftaucht und dort unbegrenzt anwächst. Es läuft im Hintergrund: kein Fenster, kein Menüleistensymbol, nichts zu bedienen.
+Wooosh clears the cache that shows up as “System Data” on a Mac and grows there without end. It runs in the background: no window, no menu bar icon, nothing to operate.
 
-![Ein Durchlauf von Wooosh: 34,01 GB in 1347 Objekten freigegeben, 1,8 Sekunden, frei von 176,52 GB auf 210,53 GB](./docs/assets/sweep.png)
+![One sweep by Wooosh: 34.01 GB freed across 1347 items in 1.8 seconds, free space from 176.52 GB to 210.53 GB](./docs/assets/sweep.png)
 
-## Das Problem
+## The problem
 
-`bird`, der iCloud-Drive-Dienst von macOS, legt beim Synchronisieren eine
-Staging-Kopie jeder übertragenen Datei an — und räumt sie nach Abschluss nicht
-zuverlässig wieder ab. Die Kopien sammeln sich unbegrenzt in
-`~/Library/Caches/CloudKit/com.apple.bird`.
+`bird`, the iCloud Drive service of macOS, stages a copy of every file it
+transfers — and does not reliably clear those copies afterwards. They pile up
+without a limit in `~/Library/Caches/CloudKit/com.apple.bird`.
 
-Auf dem Referenzsystem waren es **47 GB in 1.826 Dateien**, in einem früheren
-Fall über 300 GB. In der Speicherübersicht taucht das als „Systemdaten" auf,
-also als etwas, das man nicht anfassen kann.
+On the reference machine that was **47 GB across 1,826 files**, and over 300 GB
+in an earlier case. The storage overview files it under “System Data”, which
+reads as something you cannot touch.
 
-Nach dem ersten Durchlauf von Wooosh: **820 KB.**
+After the first sweep by Wooosh: **820 KB.**
 
-## Installation
+## Installing
 
-1. Aktuelle `Wooosh-x.y.z.zip` aus den [Releases](../../releases) laden
-2. Entpacken und **Wooosh.app in den Programme-Ordner ziehen**
-3. Öffnen — das Fenster führt durch die einmalige Freigabe
+1. Download the current `Wooosh-x.y.z.zip` from [Releases](../../releases)
+2. Unpack it and **drag Wooosh.app into your Applications folder**
+3. Open it — the window walks you through the one-time permission
 
-Beim ersten Start trägt sich Wooosh selbst als Anmeldeobjekt ein. Es gibt keinen
-Installer und nichts, was zurückbleibt: Wooosh.app in den Papierkorb ziehen
-entfernt auch den Autostart.
+On its first start, Wooosh registers itself as a login item. There is no
+installer and nothing left behind: dragging Wooosh.app to the bin takes the
+autostart with it.
 
-Die App ist mit Developer ID signiert und notarisiert, öffnet sich also per
-Doppelklick ohne Gatekeeper-Umweg.
+The app is signed with Developer ID and notarised, so it opens on a double
+click without a detour through Gatekeeper.
 
-### Festplattenvollzugriff
+### Full Disk Access
 
-**Ohne diesen Schritt tut Wooosh nichts.**
+**Without this step, Wooosh does nothing.**
 
-`~/Library/Caches/CloudKit` ist von macOS per TCC geschützt. Wooosh bekommt dort
-`EPERM, Operation not permitted`.
+macOS protects `~/Library/Caches/CloudKit` through TCC. Wooosh gets
+`EPERM, Operation not permitted` there.
 
-Das Tückische: alle höheren macOS-APIs melden eine TCC-Sperre als *leeres
-Verzeichnis*. Ohne Gegenmaßnahme sähe eine blockierte App exakt aus wie eine,
-die sauber aufgeräumt hat. Wooosh fragt bei leerem Treffer deshalb per
-`opendir` den echten `errno` ab und unterscheidet die beiden Fälle ausdrücklich:
+The treacherous part: every higher macOS API reports a TCC block as an *empty
+directory*. Without a countermeasure, a blocked app would look exactly like one
+that has cleaned up properly. So on an empty match, Wooosh asks `opendir` for
+the real `errno` and tells the two cases apart explicitly:
 
 ```
-[WARN] cloudkit.bird: keine Treffer für ~/Library/Caches/CloudKit/com.apple.bird/*/Assets
-       — nicht lesbar (Operation not permitted) — vermutlich fehlt Full Disk Access
+[WARN] cloudkit.bird: no matches for ~/Library/Caches/CloudKit/com.apple.bird/*/Assets
+       — not readable (Operation not permitted) — Full Disk Access is probably missing
 ```
 
-Erkennt Wooosh die Sperre, zeigt es das Einrichtungsfenster und schickt
-zusätzlich eine Systemmitteilung — beim Start durch die Anmeldung gibt es sonst
-keinen Hinweis darauf, dass die App nur wartet.
+When Wooosh sees the block, it shows the setup window and sends a system
+notification as well — started from login, there would otherwise be no sign
+that the app is only waiting.
 
-Die Freigabe selbst:
+Granting it:
 
-1. Systemeinstellungen → Datenschutz & Sicherheit → **Festplattenvollzugriff**
-2. „+", dann Wooosh aus dem Programme-Ordner auswählen
-3. Schalter aktivieren
+1. System Settings → Privacy & Security → **Full Disk Access**
+2. “+”, then pick Wooosh from the Applications folder
+3. Turn the switch on
 
-**macOS beendet Wooosh dabei.** Das gehört so: neue Berechtigungen greifen erst
-beim nächsten Start. Fragt macOS nach, „Beenden & neu öffnen" wählen —
-verschwindet die App stattdessen kommentarlos, einmal neu öffnen.
+**macOS quits Wooosh while you do this.** That is how it works: new permissions
+take hold only at the next start. If macOS asks, choose “Quit & Reopen” — if the
+app simply disappears instead, open it once more.
 
-Ist das Fenster während der Freigabe offen, erkennt Wooosh sie innerhalb von
-zwei Sekunden und legt sofort los.
+If the window is open while access is granted, Wooosh notices within two
+seconds and starts right away.
 
-Einmal erteilt, bleibt die Freigabe über Updates hinweg bestehen: TCC bindet sie
-an die Code-Signatur, und die ist mit Developer ID über die Team-ID stabil. Bei
-einer ad-hoc signierten App wäre das anders — dort besteht die Signatur nur aus
-dem CDHash des Bundles, der sich bei jedem Build ändert, womit die Freigabe
-jedes Mal verfällt.
+Once granted, the permission survives updates: TCC ties it to the code
+signature, and with Developer ID that signature is stable through the team ID.
+With an ad-hoc signed app it would be different — there the signature is only
+the bundle's CDHash, which changes with every build, so the permission would
+lapse every time.
 
-## Was gelöscht wird
+## What gets deleted
 
-Nur Zwischenspeicher, die einem **Systemdienst** gehören. Alles, was einer
-Anwendung gehört — ihr Cache, ihr Store, ihre heruntergeladenen Assets — ist
-tabu, unabhängig davon, wie leicht es sich neu aufbauen ließe.
+Only caches that belong to a **system service**. Anything that belongs to an
+application — its cache, its store, its downloaded assets — is off limits, no
+matter how easily it could be built again.
 
-| Ziel | Karenz | Was |
+| Target | Grace | What |
 |---|---|---|
-| `cloudkit.bird` | 2 h | iCloud-Drive Transfer-Staging von `bird` |
-| `iconservices` | 7 d | systemweiter Icon-Cache — braucht root, daher aus |
+| `cloudkit.bird` | 2 h | iCloud Drive transfer staging by `bird` |
+| `iconservices` | 7 d | system-wide icon cache — needs root, therefore off |
 
-### Was nie angefasst wird
+### What is never touched
 
-Diese Pfade stehen in einer eigenen Liste (`TargetCatalogue.observed`), die der
-Sweeper nicht liest. Es gibt keine Einstellung, die daraus ein Löschziel macht.
+These paths live in a list of their own (`TargetCatalogue.observed`) that the
+sweeper does not read. There is no setting that turns one of them into a target.
 
 `~/Library/Application Support/Claude` · `~/Library/Caches/com.openai.codex` ·
 `~/Library/Caches/net.whatsapp.WhatsApp` · `~/Library/Caches/*.ShipIt` ·
@@ -96,49 +95,47 @@ Sweeper nicht liest. Es gibt keine Einstellung, die daraus ein Löschziel macht.
 `~/Library/Caches/Homebrew` · `~/Library/Caches/node-gyp` ·
 `~/Library/Caches/pip` · `~/Library/Caches/Adobe Camera Raw 2` ·
 `~/Library/Caches/Steam` · `~/Library/Mobile Documents` ·
-`/private/var/vm/sleepimage` · Papierkorb · Downloads
+`/private/var/vm/sleepimage` · Bin · Downloads
 
-## Sicherheitskonzept
+## How it stays safe
 
-Jede Löschung passiert ein Gate, das **fail closed** arbeitet: eine Prüfung, die
-sich nicht auswerten lässt, lehnt den Kandidaten ab, statt ihn durchzuwinken.
-Lässt sich `lsof` nicht ausführen, wird der komplette Durchlauf abgebrochen.
+Every deletion passes a gate that works **fail closed**: a check that cannot be
+evaluated turns the candidate down instead of waving it through. If `lsof`
+cannot be run, the whole sweep is called off.
 
-1. **Allowlist** — ein Kandidat muss unterhalb eines fest einkompilierten Roots
-   liegen.
-2. **Geschützte Pfade** — Home, Dokumente, Schreibtisch, Bilder, Mobile
-   Documents, Keychains, Systemverzeichnisse und deren Vorfahren sind hart
-   gesperrt. Ein Ziel, das Vorfahr eines geschützten Pfads ist, wird abgelehnt.
-3. **Symlink-Auflösung** — Pfade werden aufgelöst und *danach* erneut gegen die
-   Allowlist geprüft.
-4. **Volume-Grenze** — weicht die Device-ID eines Kindes vom Container ab, ist
-   es ein Mountpoint und wird ausgelassen.
-5. **Karenzzeit** — pro Ziel. Bei Verzeichnissen wird der gesamte Teilbaum nach
-   dem jüngsten Zeitstempel durchsucht; die mtime eines Ordners allein bewegt
-   sich nicht, wenn sich ein Enkel ändert.
-6. **Offene Handles** — ein `lsof`-Schnappschuss pro Durchlauf. Was ein Prozess
-   offen hat, auch irgendwo unterhalb eines Verzeichnisses, bleibt liegen.
-7. **Container bleiben stehen** — gelöscht werden immer nur die *Kinder* eines
-   Zielverzeichnisses, nie dieses selbst.
+1. **Allowlist** — a candidate has to sit below a root compiled into the app.
+2. **Protected paths** — home, Documents, Desktop, Pictures, Mobile Documents,
+   keychains, system directories and their ancestors are barred outright. A
+   target that is an ancestor of a protected path is turned down.
+3. **Symlinks resolved** — paths are resolved and checked against the allowlist
+   *afterwards*.
+4. **Volume boundary** — if a child's device ID differs from the container's, it
+   is a mount point and is left out.
+5. **Grace period** — per target. For directories the whole subtree is searched
+   for the youngest timestamp; a folder's own mtime does not move when a
+   grandchild changes.
+6. **Open handles** — one `lsof` snapshot per sweep. Whatever a process holds
+   open, anywhere below a directory, stays where it is.
+7. **Containers stay** — only the *children* of a target directory are ever
+   deleted, never the directory itself.
 
-Dass die 47 GB tote Reste waren und keine laufende Übertragung, wurde vor dem
-Bau belegt: kein Schreibzugriff seit Stunden, keine Größenänderung über eine
-Messperiode, null offene Handles von `bird` und `cloudd`. Genau diese Prüfungen
-sind das Gate.
+That those 47 GB were dead leftovers and not a transfer in progress was
+established before any code was written: no write access for hours, no change in
+size across a measuring period, zero open handles from `bird` and `cloudd`.
+Those very checks are the gate.
 
-## Auslöser
+## What sets off a sweep
 
-- **Intervall** — alle 15 Minuten, plus einmal kurz nach dem Start.
-- **FSEvents** — ein Watcher auf `~/Library/Caches/CloudKit/com.apple.bird`. Das
-  erste Ereignis einer Serie startet eine 90-Sekunden-Uhr, spätere Ereignisse
-  werden eingesammelt.
+- **Interval** — every 15 minutes, plus once shortly after the start.
+- **FSEvents** — a watcher on `~/Library/Caches/CloudKit/com.apple.bird`. The
+  first event of a series starts a 90-second clock, later events are collected.
 
-Bewusst ein *Throttle*, kein zurücksetzender Debounce: auf einem belebten
-Cache-Verzeichnis käme der nächste Schreibzugriff immer vor dem Ablauf des
-Timers, und der ereignisgetriebene Durchlauf würde nie feuern. Eine laufende
-Übertragung zu schützen ist ohnehin Aufgabe des Gates, nicht des Zeitplans.
+Deliberately a *throttle*, not a resetting debounce: on a busy cache directory
+the next write would always arrive before the timer ran out, and the
+event-driven sweep would never fire. Protecting a running transfer is the gate's
+job anyway, not the schedule's.
 
-## Konfiguration
+## Configuration
 
 Optional. `~/Library/Application Support/Wooosh/config.json`
 
@@ -154,9 +151,9 @@ Optional. `~/Library/Application Support/Wooosh/config.json`
 }
 ```
 
-Protokoll: `~/Library/Logs/Wooosh/wooosh.log`
+Log: `~/Library/Logs/Wooosh/wooosh.log`
 
-## Bauen
+## Building
 
 ```bash
 brew install xcodegen
@@ -165,70 +162,67 @@ cd Wooosh
 ./build-release.sh
 ```
 
-Die Team-ID steht bewusst nicht im Repo, damit ein Fork nicht versehentlich
-damit signiert. `build-release.sh` reicht sie an `xcodebuild` weiter und setzt
-sie in eine Kopie von `ExportOptions.plist` unter `.build` ein.
+The team ID deliberately does not live in the repository, so that a fork cannot
+sign with it by accident. `build-release.sh` passes it on to `xcodebuild` and
+writes it into a copy of `ExportOptions.plist` under `.build`.
 
-Das Xcode-Projekt wird aus `project.yml` erzeugt und ist nicht eingecheckt —
-neue Dateien müssen so nie von Hand eingetragen werden. Das App-Symbol kommt als
-Icon-Composer-Paket aus `Icon/schild.icon`.
+The Xcode project is generated from `project.yml` and is not checked in — new
+files never have to be registered by hand. The app icon comes from
+`Icon/schild.icon` as an Icon Composer package.
 
 ```
 Wooosh/
 ├── Icon/                  schild.icon, schild.png, schild.pxd
 └── Wooosh/
-    ├── project.yml        Projektdefinition für xcodegen
+    ├── project.yml        project definition for xcodegen
     ├── build-release.sh
-    ├── Resources/         Info.plist, Icon
+    ├── Resources/         Info.plist, icon
     └── Sources/
-        ├── Engine/        Sweeper, Sicherheits-Gate, Ziele, Konfiguration
-        └── App/           Fenster, Zugriffsprüfung, Anmeldeobjekt, Mitteilungen
+        ├── Engine/        sweeper, safety gate, targets, configuration
+        └── App/           window, access probe, login item, notifications
 ```
 
-## Verteilung
+## Distribution
 
-Signiert mit **Developer ID Application**, Hardened Runtime aktiv, notarisiert
-und mit angeheftetem Ticket. Damit startet die App per Doppelklick, auch
-offline, und erteilte Freigaben überleben Updates.
+Signed with **Developer ID Application**, hardened runtime on, notarised and
+with the ticket stapled. That way the app starts on a double click, offline too,
+and permissions once granted survive updates.
 
-`build-release.sh` erledigt die ganze Kette: archivieren, mit Developer ID
-exportieren, packen, ein Laufwerksabbild bauen und signieren, notarisieren,
-Ticket an App und Abbild heften und das Gatekeeper-Urteil ausgeben.
+`build-release.sh` handles the whole chain: archive, export with Developer ID,
+pack, build and sign a disk image, notarise, staple the ticket to app and image,
+and print Gatekeeper's verdict.
 
-### Zugang für die Notarisierung
+### Credentials for notarising
 
-Einmalig pro Rechner:
+Once per machine:
 
 ```bash
 xcrun notarytool store-credentials "wooosh-notary" \
-    --apple-id DEINE@APPLE.ID --team-id $DEVELOPMENT_TEAM
+    --apple-id YOUR@APPLE.ID --team-id $DEVELOPMENT_TEAM
 ```
 
-Fragt nach einem app-spezifischen Passwort (appleid.apple.com → Anmeldung &
-Sicherheit → App-spezifische Passwörter) und legt es im Schlüsselbund ab. Fehlt
-das Profil, baut das Skript trotzdem eine signierte App, überspringt aber die
-Notarisierung und sagt das deutlich.
+That asks for an app-specific password (appleid.apple.com → Sign-In and Security
+→ App-Specific Passwords) and keeps it in the keychain. Without the profile the
+script still builds a signed app, but skips notarising and says so plainly.
 
-### Zwei Fallstricke im Signierweg
+### Two traps on the way to a signature
 
-**Signiert wird beim Export, nicht beim Bauen.** Xcode lehnt eine manuell
-gesetzte Developer-ID-Identität bei automatischer Signierung ab
-(„conflicting provisioning settings"). Deshalb archiviert das Skript mit
-automatischer Signierung und lässt `-exportArchive` mit `method: developer-id`
-neu signieren.
+**Signing happens on export, not on build.** With automatic signing, Xcode
+refuses a manually set Developer ID identity (“conflicting provisioning
+settings”). So the script archives with automatic signing and lets
+`-exportArchive` with `method: developer-id` sign it again.
 
-**Das Zertifikat ist für `security(1)` unsichtbar.** Xcode legt automatisch
-verwaltete Identitäten in der Data-Protection-Keychain ab, die das
-`security`-CLI nicht enumeriert — `security find-identity` zeigt die Developer
-ID also nicht an, obwohl sie existiert und funktioniert. Ein direktes
-`codesign -s "Developer ID Application"` findet sie ebenfalls nicht. Der Weg
-über `xcodebuild -exportArchive` ist deshalb nicht nur bequemer, sondern
-notwendig.
+**The certificate is invisible to `security(1)`.** Xcode keeps automatically
+managed identities in the data protection keychain, which the `security` CLI
+does not enumerate — `security find-identity` therefore does not show the
+Developer ID, although it exists and works. A direct
+`codesign -s "Developer ID Application"` does not find it either. Going through
+`xcodebuild -exportArchive` is not just more convenient, it is necessary.
 
-## Anforderungen
+## Requirements
 
-macOS 14 oder neuer. Entwickelt und getestet auf macOS 26.5 mit Xcode 26.6.
+macOS 14 or newer. Built and tested on macOS 26.5 with Xcode 26.6.
 
-## Lizenz
+## Licence
 
 MIT

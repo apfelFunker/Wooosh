@@ -10,16 +10,16 @@ settings:
     MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "4"
     SWIFT_VERSION: "5.0"
-    # Die Team-ID steht nicht im Repo. build-release.sh reicht sie aus
-    # $DEVELOPMENT_TEAM an xcodebuild weiter.
-    # Automatisch signiert. Die Developer-ID-Identität wird nicht hier gesetzt —
-    # sie kommt beim `xcodebuild -exportArchive` mit method "developer-id" dazu,
-    # das die App neu signiert. Beides gleichzeitig lehnt Xcode ab.
+    # The team ID does not live in the repository. build-release.sh passes it
+    # on to xcodebuild from $DEVELOPMENT_TEAM.
+    # Signed automatically. The Developer ID identity is not set here — it
+    # comes in with `xcodebuild -exportArchive` and method "developer-id", which
+    # re-signs the app. Xcode refuses to have both at once.
     CODE_SIGN_STYLE: Automatic
-    # Notarisierung setzt die Hardened Runtime voraus.
+    # Notarising requires the hardened runtime.
     ENABLE_HARDENED_RUNTIME: YES
-    # Kein App Sandbox: Wooosh muss Pfade außerhalb seines Containers lesen
-    # und löschen. Mit Sandbox wäre die App funktionslos.
+    # No app sandbox: Wooosh has to read and delete paths outside its own
+    # container. Sandboxed, the app would do nothing at all.
     ENABLE_APP_SANDBOX: NO
 
 targets:

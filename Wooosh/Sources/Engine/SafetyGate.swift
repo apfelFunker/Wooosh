@@ -18,19 +18,19 @@ enum SafetyGate {
         var description: String {
             switch self {
             case .notUnderAllowedRoot(let root):
-                return "liegt nicht unter erlaubtem Root \(root)"
+                return "not below the allowed root \(root)"
             case .protectedPath:
-                return "geschützter Pfad"
+                return "protected path"
             case .tooShallow(let depth):
                 return "Pfadtiefe \(depth) unter Minimum"
             case .relativeComponent:
-                return "enthält relative Komponente"
+                return "contains a relative component"
             case .escapesViaSymlink(let resolved):
-                return "Symlink verlässt erlaubten Bereich -> \(resolved)"
+                return "symlink leaves the allowed area -> \(resolved)"
             case .tooYoung(let age, let required):
                 return "zu jung (\(Format.hours(age)) < \(Format.hours(required)))"
             case .openByProcess:
-                return "von einem Prozess geöffnet"
+                return "open in a process"
             case .separateVolume:
                 return "liegt auf einem anderen Volume"
             case .unreadableMetadata(let reason):
@@ -162,7 +162,7 @@ enum SafetyGate {
         if let age = youngestAge(of: url, attributes: attributes, isSymlink: isSymlink, now: now) {
             if age < minimumAge { return .tooYoung(age: age, required: minimumAge) }
         } else {
-            return .unreadableMetadata("keine Zeitstempel")
+            return .unreadableMetadata("no timestamps")
         }
 
         if openPaths.isOpen(prefix: url.path) { return .openByProcess }
