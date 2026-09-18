@@ -1,14 +1,11 @@
-<div align="center">
+<h1>
+  <img alt="Wooosh" src="./docs/assets/wooosh-mark.png" width="72" valign="middle">
+  &nbsp;Wooosh
+</h1>
 
-# Wooosh
+Wooosh räumt den Zwischenspeicher ab, der auf dem Mac als „Systemdaten" auftaucht und dort unbegrenzt anwächst. Es läuft im Hintergrund: kein Fenster, kein Menüleistensymbol, nichts zu bedienen.
 
-**Räumt den Zwischenspeicher ab, der auf dem Mac als „Systemdaten" auftaucht und dort unbegrenzt anwächst.**
-
-Läuft im Hintergrund. Kein Fenster, kein Menüleistensymbol, nichts zu bedienen.
-
-</div>
-
----
+![Ein Durchlauf von Wooosh: 34,01 GB in 1347 Objekten freigegeben, 1,8 Sekunden, frei von 176,52 GB auf 210,53 GB](./docs/assets/sweep.png)
 
 ## Das Problem
 
@@ -22,12 +19,6 @@ Fall über 300 GB. In der Speicherübersicht taucht das als „Systemdaten" auf,
 also als etwas, das man nicht anfassen kann.
 
 Nach dem ersten Durchlauf von Wooosh: **820 KB.**
-
-```
-16:48:14  iCloud Drive Transfer-Staging (bird): 34,01 GB freigegeben
-16:48:14  Sweep fertig: 34,01 GB in 1347 Objekten, 1.8 s
-16:48:14  Frei: 176,52 GB -> 210,53 GB
-```
 
 ## Installation
 
@@ -169,9 +160,14 @@ Protokoll: `~/Library/Logs/Wooosh/wooosh.log`
 
 ```bash
 brew install xcodegen
+export DEVELOPMENT_TEAM=XXXXXXXXXX   # Apple Developer → Membership details
 cd Wooosh
 ./build-release.sh
 ```
+
+Die Team-ID steht bewusst nicht im Repo, damit ein Fork nicht versehentlich
+damit signiert. `build-release.sh` reicht sie an `xcodebuild` weiter und setzt
+sie in eine Kopie von `ExportOptions.plist` unter `.build` ein.
 
 Das Xcode-Projekt wird aus `project.yml` erzeugt und ist nicht eingecheckt —
 neue Dateien müssen so nie von Hand eingetragen werden. Das App-Symbol kommt als
@@ -191,13 +187,13 @@ Wooosh/
 
 ## Verteilung
 
-Signiert mit **Developer ID Application (Team 9FZVQ84P7B)**, Hardened Runtime
-aktiv, notarisiert und mit angehefetem Ticket. Damit startet die App per
-Doppelklick, auch offline, und erteilte Freigaben überleben Updates.
+Signiert mit **Developer ID Application**, Hardened Runtime aktiv, notarisiert
+und mit angeheftetem Ticket. Damit startet die App per Doppelklick, auch
+offline, und erteilte Freigaben überleben Updates.
 
 `build-release.sh` erledigt die ganze Kette: archivieren, mit Developer ID
-exportieren, packen, notarisieren, Ticket anheften, neu packen und das
-Gatekeeper-Urteil ausgeben.
+exportieren, packen, ein Laufwerksabbild bauen und signieren, notarisieren,
+Ticket an App und Abbild heften und das Gatekeeper-Urteil ausgeben.
 
 ### Zugang für die Notarisierung
 
@@ -205,7 +201,7 @@ Einmalig pro Rechner:
 
 ```bash
 xcrun notarytool store-credentials "wooosh-notary" \
-    --apple-id DEINE@APPLE.ID --team-id 9FZVQ84P7B
+    --apple-id DEINE@APPLE.ID --team-id $DEVELOPMENT_TEAM
 ```
 
 Fragt nach einem app-spezifischen Passwort (appleid.apple.com → Anmeldung &

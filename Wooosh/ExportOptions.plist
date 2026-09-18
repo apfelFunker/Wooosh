@@ -7,8 +7,10 @@
 	<key>method</key>
 	<string>developer-id</string>
 
+	<!-- build-release.sh schreibt hier $DEVELOPMENT_TEAM hinein und legt das
+	     Ergebnis unter .build ab; diese Datei bleibt ohne Team-ID. -->
 	<key>teamID</key>
-	<string>9FZVQ84P7B</string>
+	<string>__TEAM_ID__</string>
 
 	<key>signingStyle</key>
 	<string>automatic</string>

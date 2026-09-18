@@ -10,7 +10,8 @@ settings:
     MARKETING_VERSION: "2.1.0"
     CURRENT_PROJECT_VERSION: "4"
     SWIFT_VERSION: "5.0"
-    DEVELOPMENT_TEAM: 9FZVQ84P7B
+    # Die Team-ID steht nicht im Repo. build-release.sh reicht sie aus
+    # $DEVELOPMENT_TEAM an xcodebuild weiter.
     # Automatisch signiert. Die Developer-ID-Identität wird nicht hier gesetzt —
     # sie kommt beim `xcodebuild -exportArchive` mit method "developer-id" dazu,
     # das die App neu signiert. Beides gleichzeitig lehnt Xcode ab.
