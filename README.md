@@ -1,5 +1,8 @@
 <h1>
-  <img alt="Wooosh" src="./docs/assets/wooosh-mark.png" width="72" valign="middle">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="./docs/assets/wooosh-mark-dark.png">
+    <img alt="Wooosh" src="./docs/assets/wooosh-mark.png" width="72" valign="middle">
+  </picture>
   &nbsp;Wooosh
 </h1>
 
