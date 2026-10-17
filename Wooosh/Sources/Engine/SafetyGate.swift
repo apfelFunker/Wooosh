@@ -62,6 +62,8 @@ enum SafetyGate {
             home + "/Movies",
             home + "/Music",
             home + "/Developer",
+            home + "/Library/Developer",
+            home + "/Library/Developer/Xcode",
             "/Library/Caches",
             "/Library/Developer",
             "/Library/Developer/CoreSimulator",
@@ -76,6 +78,7 @@ enum SafetyGate {
     private static let allowedRoots: [String] = [
         standardize(Paths.home.path + "/Library/Caches"),
         standardize(Paths.home.path + "/Library/Application Support"),
+        standardize(Paths.home.path + "/Library/Developer/Xcode"),
         standardize("/Library/Caches"),
         standardize("/Library/Developer/CoreSimulator/Caches"),
     ]

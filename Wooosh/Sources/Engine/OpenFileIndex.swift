@@ -65,8 +65,8 @@ struct OpenFileIndex {
             finishedReading.signal()
         }
 
-        let deadline = Date().addingTimeInterval(timeout)
-        while process.isRunning && Date() < deadline {
+        let deadline = SweepClock.now + timeout
+        while process.isRunning && SweepClock.now < deadline {
             usleep(50_000)
         }
         if process.isRunning {
