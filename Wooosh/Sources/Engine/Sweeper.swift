@@ -46,7 +46,10 @@ final class Sweeper {
         }
         Log.shared.debug("\(openFiles.count) offene Pfade erfasst")
 
-        let deadline = started.addingTimeInterval(config.maxSweepSeconds)
+        // Measured on a clock that stops while the Mac sleeps. A wall-clock
+        // deadline expired whenever the lid closed mid-sweep, and the sweep woke
+        // up already out of time.
+        let deadline = SweepClock.now + config.maxSweepSeconds
         let now = Date()
 
         for (target, enabled) in config.resolvedTargets() {
@@ -58,8 +61,8 @@ final class Sweeper {
                 result.skipped[target.id, default: 0] += 1
                 continue
             }
-            if Date() > deadline {
-                Log.shared.warn("Zeitbudget \(Format.duration(config.maxSweepSeconds)) erreicht — Rest vertagt")
+            if SweepClock.now > deadline {
+                Log.shared.warn("Time budget of \(Format.duration(config.maxSweepSeconds)) used up \u{2014} the rest waits for the next sweep")
                 break
             }
 
@@ -69,6 +72,10 @@ final class Sweeper {
                 result.perTarget[target.id] = freed
                 Log.shared.info("\(target.displayName): \(Format.bytes(freed)) freed")
             }
+        }
+
+        if targetID == nil, SweepClock.now <= deadline {
+            SimulatorCleanup.run(config: config, result: &result)
         }
 
         let elapsed = Date().timeIntervalSince(started)
@@ -88,7 +95,7 @@ final class Sweeper {
         target: CleanupTarget,
         openFiles: OpenFileIndex,
         now: Date,
-        deadline: Date,
+        deadline: TimeInterval,
         result: inout SweepResult
     ) -> Int64 {
         var freedForTarget: Int64 = 0
@@ -128,7 +135,7 @@ final class Sweeper {
             }
 
             for child in children {
-                if Date() > deadline { return freedForTarget }
+                if SweepClock.now > deadline { return freedForTarget }
 
                 if let rejection = SafetyGate.validateChild(
                     child,
@@ -195,6 +202,12 @@ final class Sweeper {
         }
         return total
     }
+}
+
+/// Seconds of uptime, not counting sleep. Budgets measured on it survive the
+/// lid closing halfway through.
+enum SweepClock {
+    static var now: TimeInterval { ProcessInfo.processInfo.systemUptime }
 }
 
 enum Volume {

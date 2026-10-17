@@ -77,13 +77,16 @@ lapse every time.
 
 ## What gets deleted
 
-Only caches that belong to a **system service**. Anything that belongs to an
-application — its cache, its store, its downloaded assets — is off limits, no
-matter how easily it could be built again.
+Only caches that belong to a **system service**, and copies the Xcode toolchain
+makes again by itself. Anything that belongs to an application — its cache, its
+store, its downloaded assets — is off limits, no matter how easily it could be
+built again.
 
 | Target | Grace | What |
 |---|---|---|
 | `cloudkit.bird` | 2 h | iCloud Drive transfer staging by `bird` |
+| `xcode.devicesupport` | 60 d | debug symbols Xcode copied for an iOS or watchOS version a device no longer runs — copied again on the next connect |
+| `simulators.unavailable` | — | simulators whose runtime is gone, removed with `simctl delete unavailable`; working simulators stay |
 | `iconservices` | 7 d | system-wide icon cache — needs root, therefore off |
 
 ### What is never touched
@@ -93,7 +96,8 @@ sweeper does not read. There is no setting that turns one of them into a target.
 
 `~/Library/Application Support/Claude` · `~/Library/Caches/com.openai.codex` ·
 `~/Library/Caches/net.whatsapp.WhatsApp` · `~/Library/Caches/*.ShipIt` ·
-`~/Library/Developer/Xcode` · `~/Library/Developer/CoreSimulator/Devices` ·
+`~/Library/Developer/Xcode` (apart from device support) ·
+`~/Library/Developer/CoreSimulator/Devices` (apart from orphaned devices) ·
 `/Library/Developer/CoreSimulator/Caches` · `~/Library/Caches/ms-playwright` ·
 `~/Library/Caches/Homebrew` · `~/Library/Caches/node-gyp` ·
 `~/Library/Caches/pip` · `~/Library/Caches/Adobe Camera Raw 2` ·

@@ -37,9 +37,10 @@ enum TargetCatalogue {
 
     /// Everything the sweeper is allowed to delete.
     ///
-    /// Deliberately limited to caches owned by system daemons. Anything that
-    /// belongs to a specific application — its cache, its store, its downloaded
-    /// assets — is out of scope by policy and lives in `observed` instead.
+    /// Deliberately limited to caches owned by system daemons and copies the
+    /// developer toolchain makes again by itself. Anything that belongs to a
+    /// specific application — its cache, its store, its downloaded assets — is
+    /// out of scope by policy and lives in `observed` instead.
     static let all: [CleanupTarget] = [
 
         CleanupTarget(
@@ -54,6 +55,20 @@ enum TargetCatalogue {
                 in ~/Library/Mobile Documents and in iCloud; the staged copies are made \
                 again when needed. A known cause of hundreds of GB of "System Data". \
                 Owned by the system daemon, not by an app.
+                """
+        ),
+
+        CleanupTarget(
+            id: "xcode.devicesupport",
+            displayName: "Xcode device support for old OS versions",
+            containerGlob: "~/Library/Developer/Xcode/*DeviceSupport",
+            minimumAge: 60 * 24 * 3600,
+            requiresRoot: false,
+            rationale: """
+                Xcode copies the debug symbols of every iOS and watchOS version a device \
+                was ever connected with, 3\u{2013}7 GB each, and never removes them. After an \
+                update the folder for the old version is dead weight. Xcode copies them \
+                again from the device the next time it is connected, so nothing is lost.
                 """
         ),
 
@@ -108,7 +123,7 @@ enum TargetCatalogue {
         ObservedPath(
             displayName: "CoreSimulator devices",
             glob: "~/Library/Developer/CoreSimulator/Devices",
-            note: "developer toolchain"),
+            note: "developer toolchain; only orphaned devices are removed, through simctl"),
         ObservedPath(
             displayName: "CoreSimulator runtime cache",
             glob: "/Library/Developer/CoreSimulator/Caches",
