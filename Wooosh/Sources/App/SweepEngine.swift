@@ -2,7 +2,8 @@ import CoreServices
 import Foundation
 
 enum Version {
-    static let current = "2.1.0"
+    /// Read from the bundle, so the log cannot fall behind project.yml.
+    static let current = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "?"
 }
 
 /// Runs the sweeps. Two triggers:
@@ -37,7 +38,7 @@ final class SweepEngine {
     }
 
     func start() {
-        Log.shared.info("Wooosh \(Version.current) gestartet (pid \(getpid()))")
+        Log.shared.info("Wooosh \(Version.current) started (pid \(getpid()))")
         if let free = Volume.availableBytes() {
             Log.shared.info("Free space at start: \(Format.bytes(free))")
         }
