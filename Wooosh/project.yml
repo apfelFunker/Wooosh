@@ -7,8 +7,8 @@ options:
 
 settings:
   base:
-    MARKETING_VERSION: "2.1.0"
-    CURRENT_PROJECT_VERSION: "4"
+    MARKETING_VERSION: "2.2.0"
+    CURRENT_PROJECT_VERSION: "5"
     SWIFT_VERSION: "5.0"
     # The team ID does not live in the repository. build-release.sh passes it
     # on to xcodebuild from $DEVELOPMENT_TEAM.
