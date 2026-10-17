@@ -89,6 +89,28 @@ final class Sweeper {
         return result
     }
 
+    /// Empties the temporary directory, as a restart would. Runs only on request.
+    func sweepTemporaryFiles() -> SweepResult {
+        var result = SweepResult()
+        let started = Date()
+
+        let openFiles = OpenFileIndex.snapshot()
+        guard openFiles.isUsable else {
+            Log.shared.error("Open-file index not available \u{2014} temporary files left alone (fail closed)")
+            result.aborted = true
+            return result
+        }
+
+        let target = TargetCatalogue.temporaryFiles
+        let freed = sweep(target: target, openFiles: openFiles, now: started,
+                          deadline: SweepClock.now + config.maxSweepSeconds, result: &result)
+        if freed > 0 { result.perTarget[target.id] = freed }
+        Log.shared.info(
+            "\(target.displayName): \(Format.bytes(freed)) freed, \(result.skipped[target.id] ?? 0) "
+            + "items in use kept (\(Format.duration(Date().timeIntervalSince(started))))")
+        return result
+    }
+
     // MARK: - Per target
 
     private func sweep(

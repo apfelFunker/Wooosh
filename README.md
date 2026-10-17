@@ -89,6 +89,13 @@ built again.
 | `simulators.unavailable` | — | simulators whose runtime is gone, removed with `simctl delete unavailable`; working simulators stay |
 | `iconservices` | 7 d | system-wide icon cache — needs root, therefore off |
 
+### Temporary files, on request
+
+The window has a **Clear Temporary Files** button. It empties `$TMPDIR`
+(`/var/folders/…/T`), the folder macOS otherwise only clears on restart. The same
+gate applies as everywhere else: anything an app holds open, or touched in the
+last hour, stays. It never runs on a timer.
+
 ### What is never touched
 
 These paths live in a list of their own (`TargetCatalogue.observed`) that the

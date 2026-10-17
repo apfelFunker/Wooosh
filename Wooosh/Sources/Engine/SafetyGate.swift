@@ -67,6 +67,7 @@ enum SafetyGate {
             "/Library/Caches",
             "/Library/Developer",
             "/Library/Developer/CoreSimulator",
+            "/private/var/folders",
         ].map { standardize($0) })
     }()
 
@@ -80,6 +81,7 @@ enum SafetyGate {
         standardize(Paths.home.path + "/Library/Application Support"),
         standardize(Paths.home.path + "/Library/Developer/Xcode"),
         standardize("/Library/Caches"),
+        standardize(Paths.userTemporaryDirectory),
         standardize("/Library/Developer/CoreSimulator/Caches"),
     ]
 
@@ -168,7 +170,7 @@ enum SafetyGate {
             return .unreadableMetadata("no timestamps")
         }
 
-        if openPaths.isOpen(prefix: url.path) { return .openByProcess }
+        if openPaths.isOpen(prefix: clean) { return .openByProcess }
 
         return nil
     }

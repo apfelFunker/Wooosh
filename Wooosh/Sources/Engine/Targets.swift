@@ -85,6 +85,23 @@ enum TargetCatalogue {
         ),
     ]
 
+    /// Emptied only when asked for, from the window — never on a timer.
+    ///
+    /// This is what a restart clears. A running app may still be using a file
+    /// here, so anything touched in the last hour or held open stays.
+    static let temporaryFiles = CleanupTarget(
+        id: "temp.user",
+        displayName: "Temporary files",
+        containerGlob: Paths.userTemporaryDirectory,
+        minimumAge: 3600,
+        requiresRoot: false,
+        rationale: """
+            Scratch files apps leave in $TMPDIR. macOS clears them on restart; \
+            files in use stay, because the open-file check covers them like every \
+            other target.
+            """
+    )
+
     /// Measured, never touched.
     ///
     /// Caches and stores that belong to an app live here, because they are the

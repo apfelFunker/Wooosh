@@ -23,6 +23,18 @@ enum Paths {
         supportDirectory.appendingPathComponent("state.json")
     }
 
+    /// The per-user temporary directory (`$TMPDIR`, `/var/folders/…/T`). macOS
+    /// empties it on restart; Wooosh empties it on request.
+    static let userTemporaryDirectory: String = {
+        var buffer = [CChar](repeating: 0, count: Int(PATH_MAX))
+        guard confstr(_CS_DARWIN_USER_TEMP_DIR, &buffer, buffer.count) > 0 else {
+            return NSTemporaryDirectory()
+        }
+        var path = String(cString: buffer)
+        if path.count > 1 && path.hasSuffix("/") { path.removeLast() }
+        return path
+    }()
+
     /// Expands a leading `~` against the real home directory.
     static func expand(_ path: String) -> String {
         guard path == "~" || path.hasPrefix("~/") else { return path }

@@ -59,7 +59,7 @@ final class SweepEngine {
                 Log.shared.info("Access complete \u{2014} every active target is reachable")
                 // Permission just arrived: do the work now instead of waiting
                 // out the rest of the interval.
-                queue.async { [weak self] in self?.performSweep(reason: "Zugriff erteilt") }
+                queue.async { [weak self] in self?.performSweep(reason: "access granted") }
             } else {
                 Log.shared.warn("Access missing for: \(result.blocked.map(\.id).joined(separator: ", "))")
             }
@@ -67,8 +67,42 @@ final class SweepEngine {
         }
     }
 
-    func sweepNow() {
-        queue.async { [weak self] in self?.performSweep(reason: "manuell") }
+    /// `completion` runs on the main queue once the sweep is over.
+    func sweepNow(completion: ((SweepResult) -> Void)? = nil) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let result = self.performSweep(reason: "by hand")
+            DispatchQueue.main.async { completion?(result) }
+        }
+    }
+
+    /// Empties the temporary directory. Queued behind any running sweep, so the
+    /// two never delete side by side.
+    func clearTemporaryFiles(completion: @escaping (SweepResult) -> Void) {
+        queue.async { [weak self] in
+            guard let self else { return }
+            let before = Volume.availableBytes()
+            let result = self.sweeper.sweepTemporaryFiles()
+            if !result.aborted {
+                self.record(result)
+                if result.bytesFreed > 0, let before, let after = Volume.availableBytes() {
+                    Log.shared.info("Free: \(Format.bytes(before)) -> \(Format.bytes(after))")
+                }
+            }
+            DispatchQueue.main.async {
+                completion(result)
+                self.onChange?()
+            }
+        }
+    }
+
+    /// Size of the temporary directory on disk. Measured off the main queue.
+    func measureTemporaryFiles(completion: @escaping (Int64) -> Void) {
+        DispatchQueue.global(qos: .utility).async { [sweeper] in
+            let url = URL(fileURLWithPath: Paths.userTemporaryDirectory, isDirectory: true)
+            let size = sweeper.allocatedSize(of: url)
+            DispatchQueue.main.async { completion(size) }
+        }
     }
 
     // MARK: - Triggers
@@ -78,7 +112,7 @@ final class SweepEngine {
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + 5, repeating: interval, leeway: .seconds(30))
         timer.setEventHandler { [weak self] in
-            self?.performSweep(reason: "Intervall")
+            self?.performSweep(reason: "interval")
         }
         timer.resume()
         self.timer = timer
@@ -158,15 +192,27 @@ final class SweepEngine {
 
     // MARK: - Sweep
 
-    private func performSweep(reason: String) {
+    @discardableResult
+    private func performSweep(reason: String) -> SweepResult {
         Log.shared.debug("Sweep triggered: \(reason)")
         let before = Volume.availableBytes()
         let result = sweeper.sweep()
-        guard !result.aborted else { return }
+        guard !result.aborted else { return result }
 
         state.sweepCount += 1
         state.lastSweep = Date()
         state.lastSweepBytesFreed = result.bytesFreed
+        record(result)
+
+        if result.bytesFreed > 0, let before, let after = Volume.availableBytes() {
+            Log.shared.info("Free: \(Format.bytes(before)) -> \(Format.bytes(after))")
+        }
+        DispatchQueue.main.async { [weak self] in self?.onChange?() }
+        return result
+    }
+
+    /// Adds a result to the running totals and saves them.
+    private func record(_ result: SweepResult) {
         if !config.dryRun {
             state.totalBytesFreed += result.bytesFreed
             state.totalItemsRemoved += result.itemsRemoved
@@ -175,10 +221,5 @@ final class SweepEngine {
             }
         }
         state.save()
-
-        if result.bytesFreed > 0, let before, let after = Volume.availableBytes() {
-            Log.shared.info("Free: \(Format.bytes(before)) -> \(Format.bytes(after))")
-        }
-        DispatchQueue.main.async { [weak self] in self?.onChange?() }
     }
 }

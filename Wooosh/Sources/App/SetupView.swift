@@ -22,10 +22,10 @@ struct SetupView: View {
                     }
                     footnote
                 }
-                .padding(24)
+                .padding(20)
             }
         }
-        .frame(width: 520, height: 580)
+        .frame(width: 560, height: 700)
         .background(Color(nsColor: .windowBackgroundColor))
     }
 
@@ -42,7 +42,7 @@ struct SetupView: View {
                     .font(.system(size: 22, weight: .semibold))
                 Text(model.isBlocked
                      ? "One more step, then it runs on its own."
-                     : "Running in the background.")
+                     : "Keeps System Data in check, in the background.")
                     .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
@@ -135,56 +135,179 @@ struct SetupView: View {
     // MARK: - Running
 
     private var runningSummary: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            Text("All set")
-                .font(.system(size: 15, weight: .semibold))
+        VStack(alignment: .leading, spacing: 16) {
+            diskCard
+            automaticCard
+            temporaryCard
+            controls
+        }
+        .onAppear { model.measureTemporaryFiles() }
+    }
 
-            Text("""
-                From now on Wooosh watches along and clears the iCloud cache as \
-                soon as it is no longer needed. It starts at login, and it has \
-                no window and no menu bar icon.
-                """)
-                .font(.system(size: 13))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+    private var diskCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(model.freeSpace)
+                        .font(.system(size: 28, weight: .semibold, design: .rounded))
+                        .monospacedDigit()
+                    Text("free of \(model.diskTotal)")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
 
-            HStack(spacing: 12) {
-                metric("Freed", model.totalFreed)
-                metric("Free now", model.freeSpace)
-                metric("Sweeps", "\(model.sweepCount)")
-            }
+                GeometryReader { proxy in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.primary.opacity(0.08))
+                        Capsule()
+                            .fill(usageTint.gradient)
+                            .frame(width: max(8, proxy.size.width * model.diskUsedFraction))
+                    }
+                }
+                .frame(height: 8)
+                .animation(.easeOut(duration: 0.4), value: model.diskUsedFraction)
 
-            if let last = model.lastSweepDescription {
-                Text(last)
+                Text("Wooosh has freed \(model.totalFreed) so far, over \(model.sweepCount) sweeps.")
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
-
-            HStack(spacing: 10) {
-                Button("Sweep now") { model.sweepNow() }
-                Button("Open log") { model.openLog() }
-            }
-
-            Toggle("Open at login", isOn: Binding(
-                get: { model.launchAtLogin },
-                set: { model.setLaunchAtLogin($0) }))
-                .toggleStyle(.switch)
-                .font(.system(size: 13))
         }
     }
 
-    private func metric(_ label: String, _ value: String) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text(value)
-                .font(.system(size: 17, weight: .semibold, design: .rounded))
-            Text(label)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
+    /// Calm until the disk gets tight.
+    private var usageTint: Color {
+        switch model.diskUsedFraction {
+        case ..<0.75: return .accentColor
+        case ..<0.9: return .orange
+        default: return .red
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(RoundedRectangle(cornerRadius: 8)
-            .fill(Color(nsColor: .controlBackgroundColor)))
+    }
+
+    private var automaticCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 0) {
+                sectionTitle("Cleared automatically", trailing: "Freed so far")
+                    .padding(.bottom, 8)
+                ForEach(Array(model.breakdown.enumerated()), id: \.element.id) { index, row in
+                    if index > 0 { Divider().padding(.leading, 34) }
+                    HStack(spacing: 12) {
+                        Image(systemName: row.symbol)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 22)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(row.name).font(.system(size: 13))
+                            Text(row.rule)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                        }
+                        Spacer()
+                        Text(row.freed)
+                            .font(.system(size: 13, weight: .medium))
+                            .monospacedDigit()
+                            .foregroundStyle(row.freed == "—" ? .tertiary : .primary)
+                    }
+                    .padding(.vertical, 7)
+                }
+            }
+        }
+    }
+
+    private var temporaryCard: some View {
+        card {
+            VStack(alignment: .leading, spacing: 10) {
+                sectionTitle("Temporary files", trailing: model.temporarySize.map { "\($0) now" })
+
+                Text("""
+                    Apps leave scratch files behind, and a restart is what normally \
+                    clears them. This does the same without restarting. Anything an \
+                    app has open, or touched in the last hour, stays.
+                    """)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 10) {
+                    Button {
+                        model.clearTemporaryFiles()
+                    } label: {
+                        Label("Clear Temporary Files", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.temporaryAction == .running)
+
+                    actionStatus(model.temporaryAction, running: "Clearing\u{2026}")
+                }
+            }
+        }
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Button("Sweep Now") { model.sweepNow() }
+                    .disabled(model.sweepAction == .running)
+                Button("Open Log") { model.openLog() }
+                actionStatus(model.sweepAction, running: "Sweeping\u{2026}")
+                Spacer()
+                Toggle("Open at login", isOn: Binding(
+                    get: { model.launchAtLogin },
+                    set: { model.setLaunchAtLogin($0) }))
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+                    .font(.system(size: 12))
+            }
+            if let last = model.lastSweepDescription {
+                Text(last)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 4)
+    }
+
+    @ViewBuilder
+    private func actionStatus(_ state: SetupModel.ActionState, running: String) -> some View {
+        switch state {
+        case .idle:
+            EmptyView()
+        case .running:
+            HStack(spacing: 6) {
+                ProgressView().controlSize(.small)
+                Text(running).font(.system(size: 12)).foregroundStyle(.secondary)
+            }
+        case .done(let message):
+            Label(message, systemImage: "checkmark.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .transition(.opacity)
+        }
+    }
+
+    private func sectionTitle(_ title: String, trailing: String? = nil) -> some View {
+        HStack {
+            Text(title).font(.system(size: 13, weight: .semibold))
+            Spacer()
+            if let trailing {
+                Text(trailing)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+        }
+    }
+
+    private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        content()
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor)))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5))
     }
 
     // MARK: - Shared
@@ -209,10 +332,11 @@ struct SetupView: View {
             Text("What Wooosh deletes")
                 .font(.system(size: 12, weight: .semibold))
             Text("""
-                Only caches that belong to a system service \u{2014} above all the \
-                transfer copies the iCloud Drive service makes and never clears \
-                again. Caches and data of individual apps are left alone, and so \
-                are your iCloud files themselves.
+                Only what macOS and Xcode make again by themselves: the transfer \
+                copies iCloud Drive never clears, Xcode\u{2019}s symbols for old OS \
+                versions, simulators that can no longer start, and \u{2014} when you \
+                ask \u{2014} temporary files. Files in use are never touched, and \
+                neither are the data of your apps or your iCloud files.
                 """)
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
