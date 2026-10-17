@@ -59,6 +59,21 @@ enum TargetCatalogue {
         ),
 
         CleanupTarget(
+            id: "pasteboard.handoff",
+            displayName: "Universal Clipboard archives",
+            containerGlob: "~/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard/archives",
+            minimumAge: 3600,
+            requiresRoot: false,
+            rationale: """
+                Copying a file or folder packs it into an archive here so a nearby \
+                iPhone or iPad could paste it. Universal Clipboard content expires \
+                after about two minutes, but the archive stays. Copying one large \
+                folder in Finder leaves a copy of its full size. Owned by the \
+                useractivityd system service.
+                """
+        ),
+
+        CleanupTarget(
             id: "xcode.devicesupport",
             displayName: "Xcode device support for old OS versions",
             containerGlob: "~/Library/Developer/Xcode/*DeviceSupport",

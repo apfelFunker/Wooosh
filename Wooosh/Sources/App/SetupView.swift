@@ -333,7 +333,7 @@ struct SetupView: View {
                 .font(.system(size: 12, weight: .semibold))
             Text("""
                 Only what macOS and Xcode make again by themselves: the transfer \
-                copies iCloud Drive never clears, Xcode\u{2019}s symbols for old OS \
+                copies iCloud Drive never clears, leftover Universal Clipboard archives, Xcode\u{2019}s symbols for old OS \
                 versions, simulators that can no longer start, and \u{2014} when you \
                 ask \u{2014} temporary files. Files in use are never touched, and \
                 neither are the data of your apps or your iCloud files.

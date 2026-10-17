@@ -80,6 +80,8 @@ enum SafetyGate {
         standardize(Paths.home.path + "/Library/Caches"),
         standardize(Paths.home.path + "/Library/Application Support"),
         standardize(Paths.home.path + "/Library/Developer/Xcode"),
+        standardize(Paths.home.path
+            + "/Library/Group Containers/group.com.apple.coreservices.useractivityd/shared-pasteboard"),
         standardize("/Library/Caches"),
         standardize(Paths.userTemporaryDirectory),
         standardize("/Library/Developer/CoreSimulator/Caches"),

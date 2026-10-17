@@ -41,6 +41,8 @@ final class SetupModel: ObservableObject {
     private static let rows: [(id: String, name: String, symbol: String, rule: String)] = [
         ("cloudkit.bird", "iCloud Drive transfer copies", "icloud",
          "Copies older than 2 hours"),
+        ("pasteboard.handoff", "Universal Clipboard archives", "doc.on.clipboard",
+         "Archives older than 1 hour"),
         ("xcode.devicesupport", "Xcode device support", "hammer",
          "OS versions unused for 60 days"),
         (SimulatorCleanup.id, "Orphaned simulators", "iphone",

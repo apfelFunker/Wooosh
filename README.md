@@ -85,6 +85,7 @@ built again.
 | Target | Grace | What |
 |---|---|---|
 | `cloudkit.bird` | 2 h | iCloud Drive transfer staging by `bird` |
+| `pasteboard.handoff` | 1 h | archives Universal Clipboard leaves behind after a copy in Finder — a full-size copy of whatever was copied |
 | `xcode.devicesupport` | 60 d | debug symbols Xcode copied for an iOS or watchOS version a device no longer runs — copied again on the next connect |
 | `simulators.unavailable` | — | simulators whose runtime is gone, removed with `simctl delete unavailable`; working simulators stay |
 | `iconservices` | 7 d | system-wide icon cache — needs root, therefore off |
